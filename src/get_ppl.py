@@ -2,7 +2,11 @@ import torch
 import tqdm
 
 
-def modified_perplexity(model, encodings):
+def modified_perplexity(
+    model,
+    encodings,
+    device='cuda' if torch.cuda.is_available() else 'cpu'
+):
     max_length = model.config.n_positions
     stride = max_length
 
@@ -15,9 +19,9 @@ def modified_perplexity(model, encodings):
             # do not create samples with len 1
             if (sample_len - (begin_loc + stride)) == 1:
                 #print(sample_len, begin_loc, end_loc)
-                end_loc+=1
-            input_ids = sample['input_ids'][:,begin_loc:end_loc].to(device)
-            if len(input_ids[0])==1:
+                end_loc += 1
+            input_ids = sample['input_ids'][:, begin_loc:end_loc].to(device)
+            if len(input_ids[0]) == 1:
                 print('producing nan')
             target_ids = input_ids.clone()
             #target_ids[:,:-1] = -100
