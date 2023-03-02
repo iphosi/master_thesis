@@ -1,8 +1,16 @@
-import torch
 from datasets import load_dataset
+from datasets import Features, Value
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# Monolingual Dataset
+dataset = load_dataset(
+    path="csv",
+    data_dir="../datasets/test",
+    features=Features({"phrase": Value(dtype="string", id=None)})
+)["train"]
 
-dataset = load_dataset(path="../datasets/test")
-print(dataset["train"]["phrase"][0])
-
+split_dataset = dataset.train_test_split(
+    test_size=0.1,
+    shuffle=True,
+    seed=40
+)
+print(split_dataset["test"][0])
