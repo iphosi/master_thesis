@@ -4,8 +4,9 @@ from datasets import Features, Value
 
 from get_ppl import *
 
-tokenizer = AutoTokenizer.from_pretrained("dbmdz/german-gpt2")
+tokenizer_orig = AutoTokenizer.from_pretrained("dbmdz/german-gpt2")
 model_orig = AutoModelForCausalLM.from_pretrained("dbmdz/german-gpt2")
+tokenizer_ft = AutoTokenizer.from_pretrained("MiriUll/german-gpt2_easy")
 model_ft = AutoModelForCausalLM.from_pretrained("MiriUll/german-gpt2_easy")
 
 # MDR Dataset for Perplexity Calculation
@@ -22,19 +23,28 @@ mdr_dataset = load_dataset(
     })
 )["train"]
 
-num_samples = 3
-normal_texts = mdr_dataset["normal_phrase"][:num_samples]
-simple_texts = mdr_dataset["simple_phrase"][:num_samples]
-normal_encodings = tokenizer("\n\n".join(normal_texts), return_tensors="pt")
-simple_encodings = tokenizer("\n\n".join(simple_texts), return_tensors="pt")
+normal_texts = mdr_dataset["normal_phrase"][:3]
+simple_texts = mdr_dataset["simple_phrase"][:3]
 
 # Perplexity Calculation
-ppl_orig = get_perplexity(
+normal_ppl_orig = get_modified_perplexity(
     model_orig,
-    simple_encodings,
+    tokenizer_orig,
+    normal_texts
 )
-ppl_ft = get_perplexity(
+normal_ppl_ft = get_modified_perplexity(
     model_ft,
-    simple_encodings
+    tokenizer_orig,
+    normal_texts
+)
+simple_ppl_orig = get_modified_perplexity(
+    model_orig,
+    tokenizer_ft,
+    simple_texts
+)
+simple_ppl_ft = get_modified_perplexity(
+    model_ft,
+    tokenizer_ft,
+    simple_texts
 )
 print("End")

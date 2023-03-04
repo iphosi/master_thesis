@@ -4,9 +4,12 @@ from tqdm import tqdm
 
 def get_perplexity(
     model,
-    encodings,
+    tokenizer,
+    texts,
     device='cuda' if torch.cuda.is_available() else 'cpu'
 ):
+    encodings = tokenizer("\n\n".join(texts), return_tensors="pt")
+
     max_length = model.config.n_positions
     stride = 512
     seq_len = encodings.input_ids.size(1)
@@ -23,7 +26,7 @@ def get_perplexity(
         with torch.no_grad():
             outputs = model(input_ids, labels=target_ids)
 
-            # loss is calculated using CrossEntropyLoss which averages over input tokens.
+            # Loss is calculated using CrossEntropyLoss which averages over input tokens.
             # Multiply it with trg_len to get the summation instead of average.
             # We will take average over all the tokens to get the true average
             # in the last step of this example.
@@ -40,9 +43,12 @@ def get_perplexity(
 
 def get_modified_perplexity(
     model,
-    encodings,
+    tokenizer,
+    texts,
     device='cuda' if torch.cuda.is_available() else 'cpu'
 ):
+    encodings = [tokenizer(text, return_tensors="pt") for text in texts]
+
     max_length = model.config.n_positions
     stride = max_length
 
@@ -52,15 +58,13 @@ def get_modified_perplexity(
         sample_nlls = []
         for begin_loc in range(0, sample_len, stride):
             end_loc = min(begin_loc + stride, sample_len)
-            # do not create samples with len 1
+            # Do not create samples with len 1
             if (sample_len - (begin_loc + stride)) == 1:
-                #print(sample_len, begin_loc, end_loc)
                 end_loc += 1
             input_ids = sample['input_ids'][:, begin_loc:end_loc].to(device)
             if len(input_ids[0]) == 1:
                 print('producing nan')
             target_ids = input_ids.clone()
-            #target_ids[:,:-1] = -100
 
             with torch.no_grad():
                 outputs = model(input_ids, labels=target_ids).loss
@@ -68,6 +72,6 @@ def get_modified_perplexity(
 
             if end_loc == sample_len:
                 break
-        #print(sample_len, len(sample_nlls))
+
         nlls.append(sum(sample_nlls) / len(sample_nlls))
     return torch.exp(torch.stack(nlls).sum() / len(nlls)).item()

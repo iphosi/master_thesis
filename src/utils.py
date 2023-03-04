@@ -6,9 +6,9 @@ dataset = load_dataset(
     path="csv",
     data_dir="../datasets/monolingual Leichte Sprache",
     features=Features({'phrase': Value(dtype='string', id=None)})
-)
+)["train"]
 
-split_dataset = dataset["train"].train_test_split(
+split_dataset = dataset.train_test_split(
     test_size=0.1,
     shuffle=True,
     seed=40
