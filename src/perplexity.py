@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 
 
-def get_perplexity(
+def get_ppl(
     model,
     tokenizer,
     texts,
@@ -41,7 +41,7 @@ def get_perplexity(
     return torch.exp(torch.stack(nlls).sum() / end_loc)
 
 
-def get_modified_perplexity(
+def get_mod_ppl(
     model,
     tokenizer,
     texts,

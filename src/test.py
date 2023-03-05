@@ -2,7 +2,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
 from datasets import Features, Value
 
-from get_ppl import *
+from perplexity import *
 
 tokenizer_orig = AutoTokenizer.from_pretrained("dbmdz/german-gpt2")
 model_orig = AutoModelForCausalLM.from_pretrained("dbmdz/german-gpt2")
