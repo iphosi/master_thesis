@@ -1,15 +1,15 @@
-import pandas as pd
-from statistics import mean
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 
-word_freq_path = "../datasets/dewiki.txt"
-word_freq_df = pd.read_csv(
-    word_freq_path,
-    sep=" ",
-    header=None,
-    names=["lemma", "frequency"]
-)
+model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
+model.load_adapter("sentiment/sst-2@ukp")
+model.set_active_adapters("sst-2")
 
-freq = word_freq_df["frequency"].min()
-
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+tokens = tokenizer.tokenize("AdapterHub is awesome!")
+input_tensor = torch.tensor([
+    tokenizer.convert_tokens_to_ids(tokens)
+])
+outputs = model(input_tensor)
 print("End")

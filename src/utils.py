@@ -14,3 +14,13 @@ split_dataset = dataset.train_test_split(
     seed=40
 )
 print(split_dataset["test"][0])
+
+ppl_dataset = load_dataset(
+    path="csv",
+    data_dir="../datasets/aligned German simplification",
+    data_files=["mdr_aligned_news.csv"],
+    features=Features({
+        "normal_phrase": Value(dtype="string", id=None),
+        "simple_phrase": Value(dtype="string", id=None),
+    })
+)["train"]

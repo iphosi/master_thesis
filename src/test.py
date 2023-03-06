@@ -1,50 +1,24 @@
+from textstat import textstat
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from datasets import load_dataset
-from datasets import Features, Value
+import re
+import pandas as pd
+import spacy
+from simplicity import *
 
-from perplexity import *
+text_path = "../evaluation/generated_texts.json"
+df = pd.read_json(text_path)
+texts = df.loc[(df["Model Name"] == "german-gpt2") & (df["Tuning Method"] == "ORIG")]["Generated Texts"].values[0]
 
-tokenizer_orig = AutoTokenizer.from_pretrained("dbmdz/german-gpt2")
-model_orig = AutoModelForCausalLM.from_pretrained("dbmdz/german-gpt2")
-tokenizer_ft = AutoTokenizer.from_pretrained("MiriUll/german-gpt2_easy")
-model_ft = AutoModelForCausalLM.from_pretrained("MiriUll/german-gpt2_easy")
-
-# MDR Dataset for Perplexity Calculation
-mdr_dataset = load_dataset(
-    path="csv",
-    data_dir="../datasets/aligned German simplification",
-    data_files=[
-        "mdr_aligned_dictionary.csv",
-        "mdr_aligned_news.csv"
-    ],
-    features=Features({
-        "normal_phrase": Value(dtype="string", id=None),
-        "simple_phrase": Value(dtype="string", id=None),
-    })
-)["train"]
-
-normal_texts = mdr_dataset["normal_phrase"][:3]
-simple_texts = mdr_dataset["simple_phrase"][:3]
-
-# Perplexity Calculation
-normal_ppl_orig = get_modified_perplexity(
-    model_orig,
-    tokenizer_orig,
-    normal_texts
+nlp = spacy.load("de_dep_news_trf")
+docs = nlp.pipe(
+    texts,
+    disable=['tok2vec', 'morphologizer', 'attribute_ruler', 'ner']
 )
-normal_ppl_ft = get_modified_perplexity(
-    model_ft,
-    tokenizer_orig,
-    normal_texts
-)
-simple_ppl_orig = get_modified_perplexity(
-    model_orig,
-    tokenizer_ft,
-    simple_texts
-)
-simple_ppl_ft = get_modified_perplexity(
-    model_ft,
-    tokenizer_ft,
-    simple_texts
+word_freq_path = "../datasets/dewiki.txt"
+word_freq_df = pd.read_csv(
+    word_freq_path,
+    sep=" ",
+    header=None,
+    names=["lemma", "frequency"]
 )
 print("End")

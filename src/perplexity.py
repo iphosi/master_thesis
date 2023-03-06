@@ -6,7 +6,7 @@ def get_ppl(
     model,
     tokenizer,
     texts,
-    device='cuda' if torch.cuda.is_available() else 'cpu'
+    device
 ):
     encodings = tokenizer("\n\n".join(texts), return_tensors="pt")
 
@@ -45,7 +45,7 @@ def get_mod_ppl(
     model,
     tokenizer,
     texts,
-    device='cuda' if torch.cuda.is_available() else 'cpu'
+    device
 ):
     encodings = [tokenizer(text, return_tensors="pt") for text in texts]
 
