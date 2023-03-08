@@ -1,6 +1,7 @@
 from datasets import load_dataset
 from datasets import Features, Value
 
+
 # Monolingual Dataset
 dataset = load_dataset(
     path="csv",
@@ -13,7 +14,6 @@ split_dataset = dataset.train_test_split(
     shuffle=True,
     seed=40
 )
-print(split_dataset["test"][0])
 
 ppl_dataset = load_dataset(
     path="csv",

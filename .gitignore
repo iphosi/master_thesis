@@ -1,6 +1,7 @@
 /venv_thesis
+/src/__pycache__/
+/src/~/
 /datasets
-src/__pycache__/
-src/~/
-evaluation/perplexity_backup.csv
-evaluation/simplicity_backup.csv
+/adapters
+/evaluation/perplexity_backup.csv
+/evaluation/simplicity_backup.csv
