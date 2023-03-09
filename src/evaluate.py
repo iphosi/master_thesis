@@ -32,7 +32,7 @@ class Evaluate:
             "german-gpt2": {
                 "ORIG": "dbmdz/german-gpt2",
                 "FT": "MiriUll/german-gpt2_easy",
-                "ADP": None
+                "ADP_BN": "../adapters/Adapter_Bottleneck/model"
             },
             "gerpt2": {
                 "ORIG": "benjamin/gerpt2",
@@ -42,6 +42,8 @@ class Evaluate:
         } if model_dict is None else model_dict
         self.lang = "de"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        textstat.set_lang(self.lang)
 
     def perplexity_eval(
         self,
@@ -69,9 +71,28 @@ class Evaluate:
             else:
                 for tuning_method, model_path in self.model_dict[model_name].items():
                     print(f"{model_name}: {tuning_method}")
+
                     if model_path:
-                        tokenizer = AutoTokenizer.from_pretrained(model_path, device_map="auto")
-                        model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+                        if tuning_method.startswith("ADP"):
+                            tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
+                            model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
+                            model.load_adapter(model_path)
+
+                            adapter_dicts = model.adapter_summary(as_dict=True)
+                            adapter_names = [
+                                adapter_dict["name"] for adapter_dict in adapter_dicts
+                                if adapter_dict["name"] != "Full model"
+                            ]
+                            for name in adapter_names:
+                                model.set_active_adapters(name)
+
+                            model.to(self.device)
+                        else:
+                            tokenizer = AutoTokenizer.from_pretrained(model_path)
+                            model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
+
+                        tokenizer.pad_token = tokenizer.eos_token
+                        model.eval()
 
                         simple_ppl = get_mod_ppl(
                             model,
@@ -99,15 +120,11 @@ class Evaluate:
         self,
         model_names,
         spacy_model="de_dep_news_trf",
-        word_freq_path="../datasets/dewiki.txt",
         input_path="../evaluation/generated_texts.json",
         output_path="../evaluation/simplicity.csv"
     ):
         # SpaCy Pipeline
         nlp = spacy.load(spacy_model)
-
-        # Readability Evaluation for German Texts
-        textstat.set_lang(self.lang)
 
         text_df = pd.read_json(input_path)
 
@@ -157,6 +174,8 @@ class Evaluate:
         model_names,
         input_prompts=None,
         logits_processor=None,
+        repetition_penalty=3.0,
+        temperature=1.0,
         max_new_tokens=100,
         penalty_alpha=0.6,
         top_k=3,
@@ -168,13 +187,16 @@ class Evaluate:
             "Das", "Heute", "Wir", "Die Türkei", "Dieses Haus", "Mein Vater"
         ] if input_prompts is None else input_prompts
 
-        # Repetition Penalty
+        # Logits Processor
+        '''
+        Example:
         logits_processor = LogitsProcessorList(
             [
                 RepetitionPenaltyLogitsProcessor(penalty=3.0),
                 TemperatureLogitsWarper(temperature=1.0)
             ]
         ) if logits_processor is None else logits_processor
+        '''
 
         columns = [
             "Model Name",
@@ -190,9 +212,28 @@ class Evaluate:
             else:
                 for tuning_method, model_path in self.model_dict[model_name].items():
                     print(f"{model_name}: {tuning_method}")
+
                     if model_path:
-                        tokenizer = AutoTokenizer.from_pretrained(model_path, device_map="auto")
-                        model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+                        if tuning_method.startswith("ADP"):
+                            tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
+                            model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
+                            model.load_adapter(model_path)
+
+                            adapter_dicts = model.adapter_summary(as_dict=True)
+                            adapter_names = [
+                                adapter_dict["name"] for adapter_dict in adapter_dicts
+                                if adapter_dict["name"] != "Full model"
+                            ]
+                            for name in adapter_names:
+                                model.set_active_adapters(name)
+
+                            model.to(self.device)
+                        else:
+                            tokenizer = AutoTokenizer.from_pretrained(model_path)
+                            model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
+
+                        tokenizer.pad_token = tokenizer.eos_token
+                        model.eval()
 
                         batch_input_ids = [
                             tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
@@ -207,6 +248,8 @@ class Evaluate:
                                 model.generate(
                                     input_ids=input_ids,
                                     logits_processor=logits_processor,
+                                    repetition_penalty=repetition_penalty,
+                                    temperature=temperature,
                                     max_new_tokens=max_new_tokens,
                                     penalty_alpha=penalty_alpha,
                                     top_k=top_k,
@@ -219,6 +262,8 @@ class Evaluate:
                                 model.generate(
                                     input_ids=input_ids,
                                     logits_processor=logits_processor,
+                                    repetition_penalty=repetition_penalty,
+                                    temperature=temperature,
                                     max_new_tokens=max_new_tokens,
                                     do_sample=True,
                                     pad_token_id=model.config.eos_token_id
@@ -230,6 +275,8 @@ class Evaluate:
                                 model.generate(
                                     input_ids=input_ids,
                                     logits_processor=logits_processor,
+                                    repetition_penalty=repetition_penalty,
+                                    temperature=temperature,
                                     max_new_tokens=max_new_tokens,
                                     num_beams=num_beams,
                                     do_sample=False,
@@ -255,10 +302,9 @@ class Evaluate:
 
 
 if __name__ == "__main__":
-    model_list = ["german-gpt2", "gerpt2"]
-    # model_list = ["german-gpt2"]
+    model_list = ["german-gpt2"]
     evaluate = Evaluate()
-    evaluate.generate_text(model_names=model_list)
-    #evaluate.perplexity_eval(model_names=model_list)
-    evaluate.simplicity_eval(model_names=model_list)
+    #evaluate.generate_text(model_names=model_list)
+    evaluate.perplexity_eval(model_names=model_list)
+    #evaluate.simplicity_eval(model_names=model_list)
     print("End")

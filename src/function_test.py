@@ -7,8 +7,7 @@ from transformers import (
     AdapterTrainer,
     TrainingArguments
 )
-from datasets import load_dataset
-from datasets import Features, Value, Dataset
+from datasets import Dataset
 
 
 def concat_datasets(
