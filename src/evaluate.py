@@ -305,6 +305,6 @@ if __name__ == "__main__":
     model_list = ["german-gpt2"]
     evaluate = Evaluate()
     #evaluate.generate_text(model_names=model_list)
-    evaluate.perplexity_eval(model_names=model_list)
-    #evaluate.simplicity_eval(model_names=model_list)
+    #evaluate.perplexity_eval(model_names=model_list)
+    evaluate.simplicity_eval(model_names=model_list)
     print("End")
