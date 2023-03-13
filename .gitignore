@@ -1,7 +1,8 @@
 /venv_thesis
 /src/__pycache__/
 /src/~/
-/src/backup.py
+/src/test.py
+/src/function_test.py
 /datasets
 /adapters
 /evaluation/backup
