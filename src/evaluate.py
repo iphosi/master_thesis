@@ -32,7 +32,11 @@ class Evaluate:
             "german-gpt2": {
                 "ORIG": "dbmdz/german-gpt2",
                 "FT": "MiriUll/german-gpt2_easy",
-                "ADP_BN": "../adapters/Adapter_Bottleneck/model"
+                "ADP_BN": "../adapters/Adapter_Bottleneck/model",
+                "ADP_BN_LN": "../adapters/Adapter_Bottleneck_LayerNorm/model",
+                #"ADP_COMP": "../adapters/Compacter/model",
+                "ADP_PFX": "../adapters/Prefix_Tuning/model",
+                "ADP_LoRA": "../adapters/Adapter_LoRA/model",
             },
             "gerpt2": {
                 "ORIG": "benjamin/gerpt2",
@@ -48,18 +52,22 @@ class Evaluate:
     def perplexity_eval(
         self,
         model_names,
-        ppl_dataset="../datasets/aligned German simplification/mdr_aligned_news.csv",
+        input_path="../datasets/aligned German simplification/mdr_aligned_news.csv",
         output_path="../evaluation/perplexity.csv"
     ):
-        # Dataset for Perplexity Evaluation
-        ppl_dataset = pd.read_csv(ppl_dataset)
+        print("-" * 50)
+        print("Evaluating perplexity:")
 
-        normal_texts = ppl_dataset.dropna(subset=["normal_phrase"])["normal_phrase"].values.tolist()
-        simple_texts = ppl_dataset.dropna(subset=["simple_phrase"])["simple_phrase"].values.tolist()
+        # Dataset for Perplexity Evaluation
+        dataset_df = pd.read_csv(input_path)
+
+        normal_texts = dataset_df.dropna(subset=["normal_phrase"])["normal_phrase"].values.tolist()
+        simple_texts = dataset_df.dropna(subset=["simple_phrase"])["simple_phrase"].values.tolist()
 
         columns = [
             "Model Name",
             "Tuning Method",
+            "%Parameter",
             "PPL Simple Text",
             "PPL Normal Text",
         ]
@@ -107,11 +115,23 @@ class Evaluate:
                             self.device
                         )
 
-                        data.append([model_name, tuning_method, round(simple_ppl, 2), round(normal_ppl, 2)])
+                        param = sum(
+                            summary["%param"] for summary in model.adapter_summary(as_dict=True)
+                            if summary["name"] != "Full model"
+                        )
+
+                        if tuning_method.startswith("ADP"):
+                            data.append(
+                                [model_name, tuning_method, round(param, 2), round(simple_ppl, 2), round(normal_ppl, 2)]
+                            )
+                        else:
+                            data.append(
+                                [model_name, tuning_method, 100.00, round(simple_ppl, 2), round(normal_ppl, 2)]
+                            )
 
                     else:
                         print("Model path is not defined.")
-                        data.append([model_name, tuning_method, None, None])
+                        data.append([model_name, tuning_method, None, None, None])
 
         df = pd.DataFrame(data=data, columns=columns)
         df.to_csv(output_path, index=False)
@@ -123,6 +143,9 @@ class Evaluate:
         input_path="../evaluation/generated_texts.json",
         output_path="../evaluation/simplicity.csv"
     ):
+        print("-" * 50)
+        print("Evaluating simplicity:")
+
         # SpaCy Pipeline
         nlp = spacy.load(spacy_model)
 
@@ -182,6 +205,9 @@ class Evaluate:
         num_beams=3,
         output_path="../evaluation/generated_texts.json"
     ):
+        print("-"*50)
+        print("Generating texts for simplicity evaluation:")
+
         # Input Prompts for Readability Evaluation
         input_prompts = [
             "Das", "Heute", "Wir", "Die Türkei", "Dieses Haus", "Mein Vater"
@@ -304,7 +330,7 @@ class Evaluate:
 if __name__ == "__main__":
     model_list = ["german-gpt2"]
     evaluate = Evaluate()
-    #evaluate.generate_text(model_names=model_list)
-    #evaluate.perplexity_eval(model_names=model_list)
+    evaluate.perplexity_eval(model_names=model_list)
+    evaluate.generate_text(model_names=model_list)
     evaluate.simplicity_eval(model_names=model_list)
     print("End")

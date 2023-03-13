@@ -10,81 +10,53 @@ from transformers import (
 from datasets import Dataset
 
 
-def concat_datasets(
-    path="../datasets/monolingual Leichte Sprache",
-    columns=None
+def get_rsa_score(
+    src_model,
+    src_tokenizer,
+    tgt_model,
+    tgt_tokenizer,
+    texts
 ):
-    columns = ["phrase"] if columns is None else columns
-    files = glob.glob(f"{path}/*.csv")
-    return pd.concat((pd.read_csv(file)[columns] for file in files)).dropna()
+    src_encodings = [src_tokenizer(text, return_tensors="pt") for text in texts]
+    tgt_encodings = [tgt_tokenizer(text, return_tensors="pt") for text in texts]
 
 
-def group_texts(examples, block_size=50):
-    # Concatenate all texts.
-    concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
-    total_length = len(concatenated_examples[list(examples.keys())[0]])
-    total_length = (total_length // block_size) * block_size
-    # Split by chunks of max_len.
-    result = {
-        k: [
-            t[i:i + block_size] for i in range(0, total_length, block_size)
-        ]
-        for k, t in concatenated_examples.items()
-    }
-    result["labels"] = result["input_ids"].copy()
-    return result
+def get_sim_matrix(
+    model,
+    encodings
+):
+    pass
 
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 tokenizer = AutoTokenizer.from_pretrained("dbmdz/german-gpt2", device_map="auto")
 model = AutoModelForCausalLM.from_pretrained("dbmdz/german-gpt2", device_map="auto")
 tokenizer.pad_token = tokenizer.eos_token
+model.config.pad_token_id = model.config.eos_token_id
 
-# Monolingual Dataset
-dataset_df = concat_datasets()
+config = model.config
+num_layers = config.n_layer
+spec_token_ids = [config.bos_token_id, config.eos_token_id, config.pad_token_id]
+vocab_size = config.vocab_size
+vocab_df = pd.Series(tokenizer.get_vocab()).to_frame(name="id")
+vocab_df = vocab_df[~vocab_df["id"].isin(spec_token_ids)]
 
-dataset = Dataset.from_pandas(dataset_df, preserve_index=False)
-column_names = dataset.column_names
+assert vocab_size == tokenizer.vocab_size
 
-dataset = dataset.train_test_split(
-    test_size=0.1,
-    shuffle=True,
-    seed=40
-)
+batch_token_id = [
+    torch.as_tensor(value).to(device)
+    for value in vocab_df.sample(n=5, random_state=40).values
+]
 
-dataset = dataset.map(
-    lambda batch: tokenizer(batch["phrase"]),
-    remove_columns=column_names,
-    batched=True
-)
+# Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
+# hidden_states: Tuple of torch.FloatTensor of shape (batch_size, sequence_length, hidden_size)
+batch_hidden_states = list(map(
+    lambda token_id: model(token_id, output_hidden_states=True).hidden_states,
+    batch_token_id
+))
 
-dataset = dataset.map(group_texts, batched=True)
-
-dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
-
-model.add_adapter(adapter_name="test")
-model.train_adapter(adapter_setup="test")
-
-training_args = TrainingArguments(
-    output_dir="../adapters/adapter_test/checkpoints",
-    do_train=True,
-    remove_unused_columns=False,
-    learning_rate=5e-4,
-    num_train_epochs=3,
-    save_steps=5000
-)
-
-trainer = AdapterTrainer(
-    model=model,
-    args=training_args,
-    tokenizer=tokenizer,
-    train_dataset=dataset["train"],
-    eval_dataset=dataset["test"],
-)
-
-trainer.train()
-model.save_adapter(
-    save_directory="../adapters/adapter_test/model",
-    adapter_name="test"
-)
+# (batch_size, sequence_length, hidden_size)
+hidden_state_size = batch_hidden_states[0][0].size()
 
 print("End")
