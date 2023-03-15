@@ -23,11 +23,18 @@ if __name__ == "__main__":
     assert torch.cuda.is_available() is True
 
     # Model
-    tokenizer = AutoTokenizer.from_pretrained("dbmdz/german-gpt2", device_map="auto")
-    model = AutoModelForCausalLM.from_pretrained("dbmdz/german-gpt2", device_map="auto")
+    model_path = "dbmdz/german-gpt2"
+    model_name = "german-gpt2"
+    #model_path = "benjamin/gerpt2"
+    #model_name = "gerpt2"
+    tokenizer = AutoTokenizer.from_pretrained(model_path, device_map="auto")
+    model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
 
     tokenizer.pad_token = tokenizer.eos_token
     model.config.pad_token_id = model.config.eos_token_id
+
+    for p in model.parameters():
+        p.requires_grad = False
 
     # Dataset
     dataset_df = concat_datasets()
@@ -52,8 +59,14 @@ if __name__ == "__main__":
     dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
 
     # Adapter
-    adapter_name = "Compacter"
-    adapter_config = CompacterConfig()
+    adapter_name = "Prefix_Tuning"
+    adapter_config = PrefixTuningConfig(
+        flat=False,
+        prefix_length=600,
+        bottleneck_size=16,
+        non_linearity="gelu",
+        dropout=0.5
+    )
 
     if adapter_name not in model.adapter_summary():
         model.add_adapter(adapter_name=adapter_name, config=adapter_config)
@@ -66,7 +79,7 @@ if __name__ == "__main__":
     model.train_adapter(adapter_setup=adapter_name)
 
     training_args = TrainingArguments(
-        output_dir=f"../adapters/{adapter_name}/checkpoints",
+        output_dir=f"../adapters/{model_name}/{adapter_name}/checkpoints",
         do_train=True,
         remove_unused_columns=False,
         label_smoothing_factor=0.1,
@@ -100,6 +113,6 @@ if __name__ == "__main__":
 
     # Saving
     model.save_adapter(
-        save_directory=f"../adapters/{adapter_name}/model",
+        save_directory=f"../adapters/{model_name}/{adapter_name}/model",
         adapter_name=adapter_name
     )

@@ -32,16 +32,16 @@ class Evaluate:
             "german-gpt2": {
                 "ORIG": "dbmdz/german-gpt2",
                 "FT": "MiriUll/german-gpt2_easy",
-                "ADP_BN": "../adapters/Adapter_Bottleneck/model",
-                "ADP_BN_LN": "../adapters/Adapter_Bottleneck_LayerNorm/model",
-                #"ADP_COMP": "../adapters/Compacter/model",
-                "ADP_PFX": "../adapters/Prefix_Tuning/model",
-                "ADP_LoRA": "../adapters/Adapter_LoRA/model",
+                "ADP_BN": "../adapters/german-gpt2/Adapter_Bottleneck/model",
+                "ADP_BN_LN": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model",
+                #"ADP_COMP": "../adapters/german-gpt2/Compacter/model",
+                "ADP_PFX": "../adapters/german-gpt2/Prefix_Tuning/model",
+                "ADP_LoRA": "../adapters/german-gpt2/Adapter_LoRA/model",
             },
             "gerpt2": {
                 "ORIG": "benjamin/gerpt2",
                 "FT": "MiriUll/gerpt2_easy",
-                "ADP": None
+                "ADP_Pfeiffer": "../adapters/gerpt2/Adapter_Pfeiffer/model"
             }
         } if model_dict is None else model_dict
         self.lang = "de"
@@ -328,7 +328,7 @@ class Evaluate:
 
 
 if __name__ == "__main__":
-    model_list = ["german-gpt2"]
+    model_list = ["gerpt2"]
     evaluate = Evaluate()
     evaluate.perplexity_eval(model_names=model_list)
     evaluate.generate_text(model_names=model_list)
