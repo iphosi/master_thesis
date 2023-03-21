@@ -1,4 +1,0 @@
-Model Name,Tuning Method,%Parameter,PPL Simple Text,PPL Normal Text
-gerpt2,ORIG,100.0,51.31,56.42
-gerpt2,FT,100.0,25.35,53.74
-gerpt2,ADP_Pfeiffer,1.43,38.17,90.64

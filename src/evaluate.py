@@ -20,6 +20,8 @@ import os
 
 from perplexity import *
 from simplicity import *
+from validity import *
+from rsa import *
 from textstat import textstat
 
 
@@ -27,31 +29,43 @@ class Evaluate:
     def __init__(
         self,
         model_dict=None,
+        target_error_types=None,
+        language="de",
+        region="DE"
     ):
         self.model_dict = {
             "german-gpt2": {
                 "ORIG": "dbmdz/german-gpt2",
                 "FT": "MiriUll/german-gpt2_easy",
-                "ADP_BN": "../adapters/german-gpt2/Adapter_Bottleneck/model",
-                "ADP_BN_LN": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model",
+                "ADP_BN_LN_r0_8": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r0_8",
+                "ADP_BN_LN_r4": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r4",
+                "ADP_BN_LN_r8": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r8",
+                "ADP_BN_LN_r16": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r16",
+                "ADP_BN_LN_r32": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r32",
+                #"ADP_Parallel_r4": "../adapters/german-gpt2/Adapter_Parallel/model_r4",
+                #"ADP_PFX_b96_p30": "../adapters/german-gpt2/Prefix_Tuning/model_b96_p30",
+                #"ADP_PFX_b192_p30": "../adapters/german-gpt2/Prefix_Tuning/model_b192_p30",
+                #"ADP_PFX_b192_p60": "../adapters/german-gpt2/Prefix_Tuning/model_b192_p60",
                 #"ADP_COMP": "../adapters/german-gpt2/Compacter/model",
-                "ADP_PFX": "../adapters/german-gpt2/Prefix_Tuning/model",
-                "ADP_LoRA": "../adapters/german-gpt2/Adapter_LoRA/model",
+                #"ADP_LoRA": "../adapters/german-gpt2/Adapter_LoRA/model",
             },
             "gerpt2": {
                 "ORIG": "benjamin/gerpt2",
                 "FT": "MiriUll/gerpt2_easy",
-                "ADP_Pfeiffer": "../adapters/gerpt2/Adapter_Pfeiffer/model"
+                "ADP_BN_LN": "../adapters/gerpt2/Adapter_Bottleneck_LayerNorm/model"
             }
         } if model_dict is None else model_dict
-        self.lang = "de"
+        self.target_error_types = target_error_types
+        self.language = language
+        self.region = region
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        textstat.set_lang(self.lang)
+        textstat.set_lang(self.language)
 
-    def perplexity_eval(
+    def ppl_eval(
         self,
         model_names,
+        leave_out=None,
         input_path="../datasets/aligned German simplification/mdr_aligned_news.csv",
         output_path="../evaluation/perplexity.csv"
     ):
@@ -78,13 +92,13 @@ class Evaluate:
                 raise ValueError("Invalid model name.")
             else:
                 for tuning_method, model_path in self.model_dict[model_name].items():
-                    print(f"{model_name}: {tuning_method}")
+                    print(f"{model_name} | {tuning_method}")
 
                     if model_path:
                         if tuning_method.startswith("ADP"):
                             tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
                             model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
-                            model.load_adapter(model_path)
+                            model.load_adapter(model_path, leave_out=leave_out)
 
                             adapter_dicts = model.adapter_summary(as_dict=True)
                             adapter_names = [
@@ -131,12 +145,11 @@ class Evaluate:
 
                     else:
                         print("Model path is not defined.")
-                        data.append([model_name, tuning_method, None, None, None])
 
         df = pd.DataFrame(data=data, columns=columns)
         df.to_csv(output_path, index=False)
 
-    def simplicity_eval(
+    def simp_val_eval(
         self,
         model_names,
         spacy_model="de_dep_news_trf",
@@ -144,7 +157,7 @@ class Evaluate:
         output_path="../evaluation/simplicity.csv"
     ):
         print("-" * 50)
-        print("Evaluating simplicity:")
+        print("Evaluating simplicity and validity:")
 
         # SpaCy Pipeline
         nlp = spacy.load(spacy_model)
@@ -156,7 +169,9 @@ class Evaluate:
             "Tuning Method",
             "Average FRE",
             "Average Word Log Frequency",
-            "Number of Newlines"
+            "Number of Sentences",
+            "Number of Newlines",
+            "Number of Errors"
         ]
 
         data = []
@@ -166,7 +181,7 @@ class Evaluate:
                 raise ValueError("Invalid model name.")
             else:
                 for tuning_method, model_path in self.model_dict[model_name].items():
-                    print(f"{model_name}: {tuning_method}")
+                    print(f"{model_name} | {tuning_method}")
                     if model_path:
                         texts = text_df.loc[
                             (text_df["Model Name"] == model_name) & (text_df["Tuning Method"] == tuning_method)
@@ -176,18 +191,33 @@ class Evaluate:
                             disable=['tok2vec', 'morphologizer', 'attribute_ruler', 'ner']
                         )
 
+                        docs = list(docs)
+
                         avg_fre = mean(map(textstat.flesch_reading_ease, texts))
                         avg_word_log_freq = mean(map(get_log_freq, docs))
+                        num_sentences = sum(map(count_sentences, docs))
                         num_newlines = sum(map(count_newlines, texts))
+                        num_errors = count_errors(
+                            texts=texts,
+                            language=f"{self.language}_{self.region}",
+                            target_error_types=self.target_error_types,
+                            return_errors=False
+                        )
 
                         data.append(
-                            [model_name, tuning_method, round(avg_fre, 2), round(avg_word_log_freq, 2), num_newlines]
+                            [
+                                model_name,
+                                tuning_method,
+                                round(avg_fre, 2),
+                                round(avg_word_log_freq, 2),
+                                num_sentences,
+                                num_newlines,
+                                num_errors
+                            ]
                         )
 
                     else:
-                        data.append(
-                            [model_name, tuning_method, None, None, None]
-                        )
+                        print("Model path is not defined.")
 
         df = pd.DataFrame(data=data, columns=columns)
         df.to_csv(output_path, index=False)
@@ -195,6 +225,7 @@ class Evaluate:
     def generate_text(
         self,
         model_names,
+        leave_out=None,
         input_prompts=None,
         logits_processor=None,
         repetition_penalty=3.0,
@@ -206,7 +237,7 @@ class Evaluate:
         output_path="../evaluation/generated_texts.json"
     ):
         print("-"*50)
-        print("Generating texts for simplicity evaluation:")
+        print("Generating texts for simplicity and validity evaluation:")
 
         # Input Prompts for Readability Evaluation
         input_prompts = [
@@ -214,7 +245,7 @@ class Evaluate:
         ] if input_prompts is None else input_prompts
 
         # Logits Processor
-        '''
+        """
         Example:
         logits_processor = LogitsProcessorList(
             [
@@ -222,7 +253,7 @@ class Evaluate:
                 TemperatureLogitsWarper(temperature=1.0)
             ]
         ) if logits_processor is None else logits_processor
-        '''
+        """
 
         columns = [
             "Model Name",
@@ -237,13 +268,13 @@ class Evaluate:
                 raise ValueError("Invalid model name.")
             else:
                 for tuning_method, model_path in self.model_dict[model_name].items():
-                    print(f"{model_name}: {tuning_method}")
+                    print(f"{model_name} | {tuning_method}")
 
                     if model_path:
                         if tuning_method.startswith("ADP"):
                             tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
                             model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
-                            model.load_adapter(model_path)
+                            model.load_adapter(model_path, leave_out=leave_out)
 
                             adapter_dicts = model.adapter_summary(as_dict=True)
                             adapter_names = [
@@ -321,16 +352,124 @@ class Evaluate:
 
                     else:
                         print("Model path is not defined.")
-                        data.append([model_name, tuning_method, None])
 
         df = pd.DataFrame(data=data, columns=columns)
         df.to_json(output_path)
 
+    def rsa(
+        self,
+        model_names,
+        leave_out=None,
+        input_path="../datasets/monolingual_split/val.csv",
+        output_path="../evaluation/similarity.csv",
+        num_sample_texts=200,
+        num_sample_tokens=1000,
+        seed=40,
+        use_cpu=True
+    ):
+        print("-"*50)
+        print("Analyzing representational similarity:")
+
+        dataset_df = pd.read_csv(input_path).dropna(subset=["phrase"])
+
+        sample_texts = dataset_df.sample(
+            n=num_sample_texts,
+            random_state=40
+        )["phrase"].values.tolist()
+
+        columns = [
+            "Model Name",
+            "Source | Target",
+            "Embedding Layer"
+        ]
+
+        data = []
+
+        device = "cpu" if use_cpu else self.device
+
+        for model_name in model_names:
+            if model_name not in self.model_dict.keys():
+                raise ValueError("Invalid model name.")
+            else:
+                src_tokenizer = None
+                src_model = None
+                tgt_tokenizer = None
+                tgt_model = None
+
+                for tuning_method, model_path in self.model_dict[model_name].items():
+
+                    if model_path:
+                        if tuning_method == "ORIG":
+                            src_tokenizer = AutoTokenizer.from_pretrained(model_path)
+                            src_model = AutoModelForCausalLM.from_pretrained(model_path)
+                            for i in range(src_model.config.n_layer):
+                                columns.append(f"Attention Layer {i}")
+
+                        elif tuning_method.startswith("ADP"):
+                            tgt_tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
+                            tgt_model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
+                            tgt_model.load_adapter(model_path, leave_out=leave_out)
+
+                            adapter_dicts = tgt_model.adapter_summary(as_dict=True)
+                            adapter_names = [
+                                adapter_dict["name"] for adapter_dict in adapter_dicts
+                                if adapter_dict["name"] != "Full model"
+                            ]
+                            for name in adapter_names:
+                                tgt_model.set_active_adapters(name)
+
+                        else:
+                            tgt_tokenizer = AutoTokenizer.from_pretrained(model_path)
+                            tgt_model = AutoModelForCausalLM.from_pretrained(model_path)
+
+                        if src_model and tgt_model:
+
+                            src_model.to(device)
+                            tgt_model.to(device)
+
+                            src_tokenizer.pad_token = src_tokenizer.eos_token
+                            src_model.eval()
+                            tgt_tokenizer.pad_token = tgt_tokenizer.eos_token
+                            tgt_model.eval()
+
+                            print("-"*50)
+                            print(f"Source Model: {model_name} | ORIG")
+                            print(f"Target Model: {model_name} | {tuning_method}")
+
+                            src_rep_spaces = get_rep_spaces(
+                                model=src_model,
+                                tokenizer=src_tokenizer,
+                                texts=sample_texts,
+                                device=device,
+                                num_sample_tokens=num_sample_tokens,
+                                seed=seed
+                            )
+                            tgt_rep_spaces = get_rep_spaces(
+                                model=tgt_model,
+                                tokenizer=tgt_tokenizer,
+                                texts=sample_texts,
+                                device=device,
+                                num_sample_tokens=num_sample_tokens,
+                                seed=seed
+                            )
+
+                            scores = get_pearson_scores(src_rep_spaces, tgt_rep_spaces, device)
+
+                            data.append([model_name, f"ORIG | {tuning_method}"] + scores)
+
+                    else:
+                        print("Model path is not defined.")
+
+        df = pd.DataFrame(data=data, columns=columns)
+        df.to_csv(output_path, index=False)
+
 
 if __name__ == "__main__":
-    model_list = ["gerpt2"]
+    model_list = ["german-gpt2"]
+    leave_out_layers = None
     evaluate = Evaluate()
-    evaluate.perplexity_eval(model_names=model_list)
-    evaluate.generate_text(model_names=model_list)
-    evaluate.simplicity_eval(model_names=model_list)
+    #evaluate.ppl_eval(model_names=model_list, leave_out=leave_out_layers)
+    #evaluate.generate_text(model_names=model_list, leave_out=leave_out_layers)
+    #evaluate.simp_val_eval(model_names=model_list)
+    evaluate.rsa(model_names=model_list, use_cpu=True)
     print("End")

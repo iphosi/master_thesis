@@ -1,4 +1,0 @@
-Model Name,Tuning Method,Average FRE,Average Word Log Frequency,Number of Newlines
-gerpt2,ORIG,39.18,3.93,27
-gerpt2,FT,63.67,4.01,65
-gerpt2,ADP_Pfeiffer,65.62,4.2,0

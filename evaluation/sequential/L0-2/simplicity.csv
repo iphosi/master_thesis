@@ -1,0 +1,8 @@
+Model Name,Tuning Method,Average FRE,Average Word Log Frequency,Number of Sentences,Number of Newlines,Number of Errors
+german-gpt2,ORIG,69.84,3.74,164,78,13
+german-gpt2,FT,65.21,4.15,165,75,11
+german-gpt2,ADP_BN_LN_r0_8,69.71,4.16,156,2,10
+german-gpt2,ADP_BN_LN_r4,67.33,4.05,136,5,13
+german-gpt2,ADP_BN_LN_r8,70.4,4.19,146,3,9
+german-gpt2,ADP_BN_LN_r16,72.79,4.17,155,4,8
+german-gpt2,ADP_BN_LN_r32,71.96,4.13,129,18,11

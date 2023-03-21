@@ -5,23 +5,27 @@ from torchmetrics import PearsonCorrCoef
 
 def get_pearson_scores(
     src_rep_spaces,
-    tgt_rep_spaces
+    tgt_rep_spaces,
+    device
 ):
-    pearson = PearsonCorrCoef()
-    return list(map(lambda src, tgt: round(pearson(src, tgt).item(), 4), src_rep_spaces, tgt_rep_spaces))
+    pearson = PearsonCorrCoef().to(device)
+    return list(map(lambda src, tgt: round(pearson(src, tgt).item(), 8), src_rep_spaces, tgt_rep_spaces))
 
 
 def get_rep_spaces(
     model,
     tokenizer,
     texts,
-    num_sample_tokens=2000,
-    seed=40
+    device,
+    num_sample_tokens=1000,
+    seed=40,
 ):
     """
     Returns the flattened upper triangular of the similarity matrix in each layer.
     """
-    batch_input_ids = [tokenizer(text, return_tensors="pt").input_ids for text in texts]
+    batch_input_ids = [tokenizer(text, return_tensors="pt").input_ids.to(device) for text in texts]
+    # hidden_states: Tuple of torch.FloatTensor of shape (batch_size, sequence_length, hidden_size).
+    # One for the output of the embeddings + One for the output of each layer
     batch_hidden_states = [
         model(
             input_ids=input_ids,
@@ -40,6 +44,7 @@ def get_rep_spaces(
             [hidden_states[layer][0] for hidden_states in batch_hidden_states],
             dim=0
         )
+
         num_tokens = layer_hidden_states.size(dim=0)
 
         if num_tokens >= num_sample_tokens:

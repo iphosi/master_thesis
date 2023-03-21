@@ -15,8 +15,12 @@ word_freq_df = pd.read_csv(
 min_freq = word_freq_df["frequency"].min()
 
 
-def count_newlines(text: str):
+def count_newlines(text):
     return text.count("\n")
+
+
+def count_sentences(doc):
+    return sum(1 for _ in doc.sents)
 
 
 def clean(lemma_freq):
@@ -26,7 +30,7 @@ def clean(lemma_freq):
         return lemma_freq.values[0]
 
 
-def get_log_freq(doc: Doc):
+def get_log_freq(doc):
     stop_mask = list(map(lambda t: not t.is_stop, doc))
     punct_mask = list(map(lambda t: not t.is_punct, doc))
 

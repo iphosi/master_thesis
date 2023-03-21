@@ -1,0 +1,8 @@
+Model Name,Tuning Method,%Parameter,PPL Simple Text,PPL Normal Text
+german-gpt2,ORIG,100.0,47.19,31.49
+german-gpt2,FT,100.0,31.81,77.76
+german-gpt2,ADP_BN_LN_r0_8,7.13,27.83,44.15
+german-gpt2,ADP_BN_LN_r4,1.44,29.24,42.7
+german-gpt2,ADP_BN_LN_r8,0.73,29.16,40.79
+german-gpt2,ADP_BN_LN_r16,0.37,30.6,41.3
+german-gpt2,ADP_BN_LN_r32,0.2,30.7,38.91
