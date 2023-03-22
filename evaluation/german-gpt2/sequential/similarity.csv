@@ -1,4 +1,4 @@
-Model Name,Source | Target,Embedding Layer,Attention Layer 0,Attention Layer 1,Attention Layer 2,Attention Layer 3,Attention Layer 4,Attention Layer 5,Attention Layer 6,Attention Layer 7,Attention Layer 8,Attention Layer 9,Attention Layer 10,Attention Layer 11
+Model Name,Source | Target,Embedding Layer,Attention Layer 1,Attention Layer 2,Attention Layer 3,Attention Layer 4,Attention Layer 5,Attention Layer 6,Attention Layer 7,Attention Layer 8,Attention Layer 9,Attention Layer 10,Attention Layer 11,Attention Layer 12
 german-gpt2,ORIG | FT,0.99998802,0.99994326,0.99997115,0.99996167,0.9999575,0.99994183,0.99991727,0.99992776,0.9998858,0.99981427,0.9995712,0.99873126,0.83186698
 german-gpt2,ORIG | ADP_BN_LN_r0_8,1.0,0.99998635,0.99999285,0.99998671,0.99997801,0.99996758,0.9999516,0.99993873,0.9998647,0.99974656,0.99953312,0.99903601,0.54381484
 german-gpt2,ORIG | ADP_BN_LN_r4,1.0,0.99997807,0.99999106,0.99998462,0.99997634,0.9999634,0.99994612,0.99993181,0.99986279,0.99974263,0.99952108,0.9990499,0.55542672

@@ -403,7 +403,7 @@ class Evaluate:
                             src_tokenizer = AutoTokenizer.from_pretrained(model_path)
                             src_model = AutoModelForCausalLM.from_pretrained(model_path)
                             for i in range(src_model.config.n_layer):
-                                columns.append(f"Attention Layer {i}")
+                                columns.append(f"Attention Layer {i + 1}")
 
                         elif tuning_method.startswith("ADP"):
                             tgt_tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
@@ -466,10 +466,11 @@ class Evaluate:
 
 if __name__ == "__main__":
     model_list = ["german-gpt2"]
+    #leave_out_layers = [i for i in range(12)]
     leave_out_layers = None
     evaluate = Evaluate()
     #evaluate.ppl_eval(model_names=model_list, leave_out=leave_out_layers)
-    #evaluate.generate_text(model_names=model_list, leave_out=leave_out_layers)
-    #evaluate.simp_val_eval(model_names=model_list)
-    evaluate.rsa(model_names=model_list, use_cpu=True)
+    evaluate.generate_text(model_names=model_list, leave_out=leave_out_layers)
+    evaluate.simp_val_eval(model_names=model_list)
+    #evaluate.rsa(model_names=model_list, use_cpu=True)
     print("End")
