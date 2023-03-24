@@ -1,8 +1,10 @@
 /venv_thesis
 /src/__pycache__/
 /src/~/
+/src/trash/
 /src/test.py
 /src/rsa_test.py
 /datasets
 /adapters
 /evaluation/backup
+/previous_work

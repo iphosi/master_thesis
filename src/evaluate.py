@@ -37,12 +37,15 @@ class Evaluate:
             "german-gpt2": {
                 "ORIG": "dbmdz/german-gpt2",
                 "FT": "MiriUll/german-gpt2_easy",
-                "ADP_BN_LN_r0_8": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r0_8",
-                "ADP_BN_LN_r4": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r4",
-                "ADP_BN_LN_r8": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r8",
-                "ADP_BN_LN_r16": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r16",
-                "ADP_BN_LN_r32": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r32",
-                #"ADP_Parallel_r4": "../adapters/german-gpt2/Adapter_Parallel/model_r4",
+                #"ADP_BN_LN_r0_8": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r0_8",
+                #"ADP_BN_LN_r4": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r4",
+                #"ADP_BN_LN_r8": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r8",
+                #"ADP_BN_LN_r16": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r16",
+                #"ADP_BN_LN_r32": "../adapters/german-gpt2/Adapter_Bottleneck_LayerNorm/model_r32",
+                "ADP_BN_P_r4_s2": "../adapters/german-gpt2/Adapter_Bottleneck_Parallel/model_r4_s2",
+                "ADP_BN_P_r4_s4": "../adapters/german-gpt2/Adapter_Bottleneck_Parallel/model_r4_s4",
+                "ADP_BN_P_r8_s4": "../adapters/german-gpt2/Adapter_Bottleneck_Parallel/model_r8_s4",
+                "ADP_BN_P_r8_s8": "../adapters/german-gpt2/Adapter_Bottleneck_Parallel/model_r8_s8",
                 #"ADP_PFX_b96_p30": "../adapters/german-gpt2/Prefix_Tuning/model_b96_p30",
                 #"ADP_PFX_b192_p30": "../adapters/german-gpt2/Prefix_Tuning/model_b192_p30",
                 #"ADP_PFX_b192_p60": "../adapters/german-gpt2/Prefix_Tuning/model_b192_p60",
@@ -466,10 +469,10 @@ class Evaluate:
 
 if __name__ == "__main__":
     model_list = ["german-gpt2"]
-    #leave_out_layers = [i for i in range(12)]
-    leave_out_layers = None
+    leave_out_layers = [i for i in range(12)]
+    #leave_out_layers = None
     evaluate = Evaluate()
-    #evaluate.ppl_eval(model_names=model_list, leave_out=leave_out_layers)
+    evaluate.ppl_eval(model_names=model_list, leave_out=leave_out_layers)
     evaluate.generate_text(model_names=model_list, leave_out=leave_out_layers)
     evaluate.simp_val_eval(model_names=model_list)
     #evaluate.rsa(model_names=model_list, use_cpu=True)
