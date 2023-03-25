@@ -231,11 +231,11 @@ class Evaluate:
         leave_out=None,
         input_prompts=None,
         logits_processor=None,
-        repetition_penalty=3.0,
-        temperature=1.0,
+        repetition_penalty=1.4,
+        temperature=0.7,
         max_new_tokens=100,
         penalty_alpha=0.6,
-        top_k=3,
+        top_k=5,
         num_beams=3,
         output_path="../evaluation/generated_texts.json"
     ):
@@ -293,6 +293,10 @@ class Evaluate:
                             model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
 
                         tokenizer.pad_token = tokenizer.eos_token
+                        if model.config.pad_token_id:
+                            pad_token_id = model.config.pad_token_id
+                        else:
+                            pad_token_id = model.config.eos_token_id
                         model.eval()
 
                         batch_input_ids = [
@@ -313,7 +317,7 @@ class Evaluate:
                                     max_new_tokens=max_new_tokens,
                                     penalty_alpha=penalty_alpha,
                                     top_k=top_k,
-                                    pad_token_id=model.config.eos_token_id,
+                                    pad_token_id=pad_token_id
                                 )
                             )
 
@@ -326,7 +330,7 @@ class Evaluate:
                                     temperature=temperature,
                                     max_new_tokens=max_new_tokens,
                                     do_sample=True,
-                                    pad_token_id=model.config.eos_token_id
+                                    pad_token_id=pad_token_id
                                 )
                             )
 
@@ -340,7 +344,7 @@ class Evaluate:
                                     max_new_tokens=max_new_tokens,
                                     num_beams=num_beams,
                                     do_sample=False,
-                                    pad_token_id=model.config.eos_token_id
+                                    pad_token_id=pad_token_id
                                 )
                             )
 
