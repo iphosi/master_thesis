@@ -26,8 +26,8 @@ class AbstractDataset(Dataset, ABC):
             truncation=True,
             max_length=max_len,
             stride=stride_length,
-            return_special_tokens_mask=True,
-            return_overflowing_tokens=True,
+            return_special_tokens_mask=False,
+            return_overflowing_tokens=False,
             add_special_tokens=True
         )
 

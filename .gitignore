@@ -4,6 +4,8 @@
 /src/trash/
 /src/test.py
 /src/rsa_test.py
+/src/trainer.py
+/src/train.py
 /datasets
 /adapters
 /evaluation/backup
