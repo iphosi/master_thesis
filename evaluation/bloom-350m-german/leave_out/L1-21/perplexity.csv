@@ -1,0 +1,3 @@
+Model Name,Tuning Method,%Parameter,PPL Simple Text,PPL Normal Text
+bloom-350m-german,ORIG,100.0,26.83,23.32
+bloom-350m-german,ADP_BN_S_r16,0.11,24.34,25.87

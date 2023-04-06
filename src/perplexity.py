@@ -8,9 +8,14 @@ def get_ppl(
     texts,
     device
 ):
-    encodings = tokenizer("\n\n".join(texts), return_tensors="pt")
+    encodings = tokenizer("\n\n".join(texts), return_tensors="pt", add_special_tokens=False)
 
-    max_length = model.config.n_positions
+    if hasattr(model.config, "n_positions"):
+        max_length = model.config.n_positions
+    elif hasattr(model.config, "seq_length"):
+        max_length = model.config.seq_length
+    else:
+        max_length = 1024
     stride = 512
     seq_len = encodings.input_ids.size(1)
 
@@ -38,19 +43,27 @@ def get_ppl(
         if end_loc == seq_len:
             break
 
-    return torch.exp(torch.stack(nlls).sum() / end_loc)
+    return torch.exp(torch.stack(nlls).sum() / end_loc).item()
 
 
 def get_mod_ppl(
     model,
     tokenizer,
     texts,
+    max_length,
+    stride,
     device
 ):
-    encodings = [tokenizer(text, return_tensors="pt") for text in texts]
+    encodings = [tokenizer(text, return_tensors="pt", add_special_tokens=False) for text in texts]
 
-    max_length = model.config.n_positions
-    stride = max_length
+    if hasattr(model.config, "n_positions"):
+        max_length = model.config.n_positions if max_length is None else max_length
+    elif hasattr(model.config, "seq_length"):
+        max_length = model.config.seq_length if max_length is None else max_length
+    else:
+        max_length = 1024 if max_length is None else max_length
+
+    stride = max_length if stride is None else stride
 
     nlls = []
     for sample in tqdm(encodings):
