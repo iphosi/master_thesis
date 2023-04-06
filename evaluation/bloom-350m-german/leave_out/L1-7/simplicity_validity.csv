@@ -1,0 +1,3 @@
+Model Name,Tuning Method,Average FRE,Average Word Log Frequency,Number of Sentences,Number of Newlines,Number of Errors
+bloom-350m-german,ORIG,62.68,3.95,137,15,3
+bloom-350m-german,ADP_BN_S_r16,63.29,3.91,110,29,2

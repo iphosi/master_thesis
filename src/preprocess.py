@@ -8,6 +8,15 @@ import unicodedata
 from abc import ABC, abstractmethod
 from typing import Iterable
 
+from transformers import (
+    GPT2TokenizerFast,
+    AutoConfig,
+    AutoTokenizer,
+    AutoModelForCausalLM
+)
+from tokenizers import Tokenizer
+from tokenizers.processors import TemplateProcessing
+
 
 class AbstractDataset(Dataset, ABC):
     def __init__(self, text_dataframe, stride_length, tokenizer, max_len):
@@ -172,3 +181,63 @@ def split_dataset(
         )
 
         return train_set, test_set
+
+
+def specify_config(
+    model_path=None,
+    special_tokens_dict=None,
+    embd_pdrop=0.1,
+    attn_pdrop=0.1,
+    resid_pdrop=0.1,
+    output_path="../adapters",
+    save_config=False
+):
+    if model_path is None:
+        raise ValueError("Model path is not specified.")
+
+    model_name = model_path.split("/")[1]
+
+    special_tokens_dict = {
+        "bos_token": "<|bos|>",
+        "eos_token": "<|eos|>",
+        "pad_token": "<|pad|>",
+        "unk_token": "<|unk|>"
+    } if special_tokens_dict is None else special_tokens_dict
+
+    bos = special_tokens_dict["bos_token"]
+    eos = special_tokens_dict["eos_token"]
+
+    tokenizer_orig = AutoTokenizer.from_pretrained(model_path)
+    tokenizer_orig.add_special_tokens(special_tokens_dict)
+
+    tokenizer = Tokenizer.from_pretrained(model_path)
+    tokenizer.post_processor = TemplateProcessing(
+        single=bos + " $A " + eos,
+        special_tokens=[(eos, tokenizer_orig.eos_token_id), (bos, tokenizer_orig.bos_token_id)],
+    )
+    tokenizer = GPT2TokenizerFast(tokenizer_object=tokenizer)
+    num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
+
+    model_config = AutoConfig.from_pretrained(
+        model_path,
+        bos_token_id=tokenizer.bos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+
+    model_config.embd_pdrop = embd_pdrop
+    model_config.attn_pdrop = attn_pdrop
+    model_config.resid_pdrop = resid_pdrop
+
+    model = AutoModelForCausalLM.from_pretrained(model_path, config=model_config)
+    model.resize_token_embeddings(len(tokenizer))
+
+    if save_config:
+        tokenizer.save_pretrained(
+            os.path.join(output_path, f"{model_name}/Orig")
+        )
+        model.save_pretrained(
+            os.path.join(output_path, f"{model_name}/Orig")
+        )
+
+    return model, tokenizer

@@ -3,7 +3,7 @@ import os
 
 
 def is_target_error(rule, target_error_types=None):
-    target_error_types = ["GRAMMAR", "PUNCTUATION"] if target_error_types is None else target_error_types
+    target_error_types = ["GRAMMAR"] if target_error_types is None else target_error_types
     if "ALL" in target_error_types:
         return True
     else:

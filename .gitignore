@@ -2,10 +2,9 @@
 /src/__pycache__/
 /src/~/
 /src/trash/
+/src/test/
 /src/test.py
 /src/rsa_test.py
-/src/trainer.py
-/src/train.py
 /datasets
 /adapters
 /evaluation/backup

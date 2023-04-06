@@ -6,12 +6,11 @@ from statistics import mean
 
 
 def vis_ppl(
-    model_name="german-gpt2",
-    adapter_type="sequential",
+    model_name="bloom-350m-german",
     pause=3
 ):
-    input_path = f"../evaluation/{model_name}/{adapter_type}/leave_out"
-    output_path = f"../evaluation/{model_name}/{adapter_type}"
+    input_path = f"../evaluation/{model_name}/leave_out"
+    output_path = f"../evaluation/{model_name}"
 
     dirs = natsorted(os.listdir(input_path))
 
@@ -74,12 +73,12 @@ def vis_ppl(
 
 
 def vis_simp(
-    model_name="german-gpt2",
-    adapter_type="sequential",
+    model_name="bloom-350m-german",
+    num_baselines=1,
     pause=3
 ):
-    input_path = f"../evaluation/{model_name}/{adapter_type}/leave_out"
-    output_path = f"../evaluation/{model_name}/{adapter_type}"
+    input_path = f"../evaluation/{model_name}/leave_out"
+    output_path = f"../evaluation/{model_name}"
     dirs = natsorted(os.listdir(input_path))
 
     plt.figure(figsize=(12, 5))
@@ -89,7 +88,7 @@ def vis_simp(
     word_log_freq_list = []
 
     for dir_name in dirs:
-        file_path = os.path.join(input_path, dir_name, "simplicity.csv")
+        file_path = os.path.join(input_path, dir_name, "simplicity_validity.csv")
         simp_df = pd.read_csv(file_path)
         simp_df = simp_df.loc[
             simp_df["Model Name"] == model_name
@@ -107,7 +106,7 @@ def vis_simp(
     fre_list = pd.DataFrame(fre_list).T.values.tolist()
     word_log_freq_list = pd.DataFrame(word_log_freq_list).T.values.tolist()
 
-    for i in range(2):
+    for i in range(num_baselines):
         fre_list[i] = [mean(fre_list[i])] * len(fre_list[i])
         word_log_freq_list[i] = [mean(word_log_freq_list[i])] * len(word_log_freq_list[i])
 
@@ -146,12 +145,12 @@ def vis_simp(
 
 
 def vis_sim(
-    model_name="german-gpt2",
-    adapter_type="sequential",
+    model_name="bloom-350m-german",
+    drop_last=3,
     pause=3
 ):
-    input_path = f"../evaluation/{model_name}/{adapter_type}/similarity.csv"
-    output_path = f"../evaluation/{model_name}/{adapter_type}"
+    input_path = f"../evaluation/{model_name}/similarity.csv"
+    output_path = f"../evaluation/{model_name}"
     sim_df = pd.read_csv(input_path)
     sim_df = sim_df.loc[
         sim_df["Model Name"] == model_name
@@ -171,11 +170,11 @@ def vis_sim(
         plt.title("Representational Similarity")
 
         plt.subplot(1, 2, 2)
-        plt.plot(sim[:-1], label=src_tgt)
+        plt.plot(sim[:-drop_last], label=src_tgt)
         plt.xlabel("Layer")
         plt.ylabel("PPMCC")
         plt.legend(loc="lower left", prop={"size": 8})
-        plt.title("Representational Similarity Drop Last")
+        plt.title(f"Representational Similarity Drop Last (N = {drop_last})")
 
     plt.suptitle(model_name)
     plt.savefig(os.path.join(output_path, "similarity.png"))
@@ -185,7 +184,7 @@ def vis_sim(
 
 
 if __name__ == "__main__":
-    vis_sim()
-    vis_ppl()
-    vis_simp()
+    # vis_sim()
+    # vis_ppl()
+    vis_simp(num_baselines=1)
     print("End")

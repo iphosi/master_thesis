@@ -1,6 +1,7 @@
 import torch
 from torchmetrics.functional import pairwise_cosine_similarity
 from torchmetrics import PearsonCorrCoef
+import itertools
 
 
 def get_pearson_scores(
@@ -23,28 +24,29 @@ def get_rep_spaces(
     """
     Returns the flattened upper triangular of the similarity matrix in each layer.
     """
-    batch_input_ids = [tokenizer(text, return_tensors="pt").input_ids.to(device) for text in texts]
+
+    batch_input_ids = (
+        tokenizer(text, return_tensors="pt", add_special_tokens=False).input_ids.to(device)
+        for text in texts
+    )
     # hidden_states: Tuple of torch.FloatTensor of shape (batch_size, sequence_length, hidden_size).
     # One for the output of the embeddings + One for the output of each layer
-    batch_hidden_states = [
+    batch_hidden_states = (
         model(
             input_ids=input_ids,
             output_hidden_states=True
         ).hidden_states
         for input_ids in batch_input_ids
-    ]
-
-    num_layers = len(batch_hidden_states[0])
+    )
 
     rep_spaces = []
     torch.manual_seed(seed)
 
-    for layer in range(num_layers):
+    for layer_hidden_states in zip(*batch_hidden_states):
         layer_hidden_states = torch.cat(
-            [hidden_states[layer][0] for hidden_states in batch_hidden_states],
-            dim=0
-        )
-
+            layer_hidden_states,
+            dim=1
+        )[0]
         num_tokens = layer_hidden_states.size(dim=0)
 
         if num_tokens >= num_sample_tokens:
