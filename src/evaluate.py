@@ -53,7 +53,6 @@ class Evaluate:
                 # "ADP_LoRA": "../adapters/german-gpt2/Adapter_LoRA/model",
             },
             "bloom-350m-german": {
-                # "ORIG": "malteos/bloom-350m-german",
                 "ORIG": "../adapters/bloom-350m-german/Orig",
                 "ADP_BN_S_r16": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16"
             }
@@ -541,12 +540,12 @@ if __name__ == "__main__":
         "bloom-350m-german",
         # "german-gpt2"
     ]
-    model_name = model_list[0]
+    model_idx = 0
     evaluate = Evaluate()
-    for layer_range in range(22, 25):
+    for layer_range in range(25):
         leave_out_layers = [layer for layer in range(layer_range)]
-        # evaluate.ppl_eval(model_name=model_name, leave_out=leave_out_layers)
-        # evaluate.generate_text(model_name=model_name, leave_out=leave_out_layers)
-        evaluate.simp_val_eval(model_name=model_name, leave_out=leave_out_layers)
-    # evaluate.rsa(model_name=model_name, use_cpu=True)
+        # evaluate.ppl_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
+        # evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
+        evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
+    # evaluate.rsa(model_name=model_list[model_idx], use_cpu=True)
     print("End")
