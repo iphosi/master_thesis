@@ -185,6 +185,6 @@ def vis_sim(
 
 if __name__ == "__main__":
     # vis_sim()
-    # vis_ppl()
-    vis_simp(num_baselines=1)
+    vis_ppl()
+    # vis_simp(num_baselines=1)
     print("End")

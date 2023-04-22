@@ -7,10 +7,11 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM
 )
+from transformers import EarlyStoppingCallback
 from tokenizers import Tokenizer
 from tokenizers.processors import TemplateProcessing
 
-from preprocess import get_dataset, split_dataset, specify_config
+from preprocess import get_monolingual_dataset, split_dataset, specify_config
 
 from transformers.adapters import (
     AdapterConfig,
@@ -39,9 +40,10 @@ def train_adapter(
     batch_size=2,
     gradient_accumulation_steps=1,
     learning_rate=4e-4,
-    model_path="../adapters/bloom-350m-german/Orig",
+    num_train_epochs=2,
+    early_stopping_patience=4,
+    model_path="malteos/bloom-350m-german",
     data_path="../datasets/monolingual Leichte Sprache",
-    **kwargs
 ):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -69,7 +71,7 @@ def train_adapter(
     else:
         max_length = 1024
 
-    dataset = get_dataset(
+    dataset = get_monolingual_dataset(
         tokenizer=tokenizer,
         max_length=max_length,
         input_path=data_path
@@ -79,7 +81,16 @@ def train_adapter(
 
     # Adapter
     adapter_dict = {
-        "Adapter_Bottleneck_Sequential": AdapterConfig(**kwargs)
+        "Adapter_Bottleneck_Sequential": AdapterConfig(
+            mh_adapter=False,
+            output_adapter=True,
+            reduction_factor=16,
+            non_linearity="gelu"
+        ),
+        "Compacter++": CompacterPlusPlusConfig(
+            reduction_factor=8,
+            phm_dim=64
+        )
     } if adapter_dict is None else adapter_dict
 
     adapter_config = adapter_dict[adapter_name]
@@ -103,7 +114,7 @@ def train_adapter(
         weight_decay=0.01,
         gradient_accumulation_steps=gradient_accumulation_steps,
         warmup_steps=200,
-        num_train_epochs=6,
+        num_train_epochs=num_train_epochs,
         save_strategy="steps",
         evaluation_strategy="steps",
         save_steps=1000,
@@ -120,7 +131,7 @@ def train_adapter(
     if checkpoint_name:
         checkpoint_path = f"../adapters/{model_name}/{adapter_name}/checkpoints/{checkpoint_name}"
     else:
-        checkpoint_path = None
+        checkpoint_path = ""
 
     trainer = ContrastiveTrainer(
         vocab_size=len(tokenizer),
@@ -133,6 +144,8 @@ def train_adapter(
         eval_dataset=val_dataset,
         data_collator=data_collator,
     )
+
+    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=early_stopping_patience))
 
     if os.path.exists(checkpoint_path):
         print("Resume from checkpoint.")
@@ -151,16 +164,14 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--adapter_name", type=str, default="Adapter_Bottleneck_Sequential")
-    parser.add_argument("--model_path",  type=str, default="../adapters/bloom-350m-german/Orig")
+    parser.add_argument("--model_path",  type=str, default="malteos/bloom-350m-german")
     parser.add_argument("--data_path", type=str, default="../datasets/monolingual Leichte Sprache")
     parser.add_argument("--checkpoint_name", type=str, default=None)
-    parser.add_argument("--batch_size", type=int, default=2)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=4e-4)
-    parser.add_argument("--mh_adapter", type=bool, default=False)
-    parser.add_argument("--output_adapter", type=bool, default=True)
-    parser.add_argument("--reduction_factor", type=int, default=16)
-    parser.add_argument("--non_linearity", type=str, default="gelu")
+    parser.add_argument("--num_train_epochs", type=int, default=2)
+    parser.add_argument("--early_stopping_patience", type=int, default=4)
 
     args = parser.parse_args()
 
@@ -173,8 +184,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
-        mh_adapter=args.mh_adapter,
-        output_adapter=args.output_adapter,
-        reduction_factor=args.reduction_factor,
-        non_linearity=args.non_linearity
+        num_train_epochs=args.num_train_epochs,
+        early_stopping_patience=args.early_stopping_patience
     )

@@ -12,18 +12,19 @@ from transformers import (
     GPT2TokenizerFast,
     AutoConfig,
     AutoTokenizer,
-    AutoModelForCausalLM
+    AutoModelForCausalLM,
+    AutoModelForSequenceClassification
 )
 from tokenizers import Tokenizer
 from tokenizers.processors import TemplateProcessing
 
 
 class AbstractDataset(Dataset, ABC):
-    def __init__(self, text_dataframe, stride_length, tokenizer, max_len):
+    def __init__(self, text_dataframe, tokenizer, stride_length, max_len):
         """
         text_dataframe: pandas dataframe with columns topic, phrase
         """
-        assert ((text_dataframe.columns.values == ["topic", "phrase"]).all())
+        assert (text_dataframe.columns.values == ["topic", "phrase"]).all()
         self.texts = text_dataframe
 
         text_list = [unicodedata.normalize("NFC", s) for s in list(self.texts["phrase"].values)]
@@ -82,11 +83,11 @@ class AbstractDataset(Dataset, ABC):
 
 
 class MonolingualDataset(AbstractDataset):
-    def __init__(self, name, csv_file, stride_length, tokenizer, max_len):
-        phrases = pd.read_csv(csv_file).fillna('text')
+    def __init__(self, name, csv_file, tokenizer, stride_length, max_len):
+        phrases = pd.read_csv(csv_file).dropna()
         texts = phrases.sort_values(["phrase_number"]).groupby(["topic"])["phrase"].apply('\n'.join).reset_index()
         self.name = name
-        super().__init__(texts, stride_length, tokenizer, max_len)
+        super().__init__(texts, tokenizer, stride_length, max_len)
 
     def get_name(self) -> str:
         return self.name
@@ -122,7 +123,29 @@ class CombinedDataset(ConcatDataset):
         return f"Dataset contains {total_items} items {individual_items}"
 
 
-def get_dataset(
+class TextComplexityDataset(Dataset):
+    def __init__(self, texts, encodings, labels):
+        self.texts = texts
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item["labels"] = float(self.labels[idx])
+        item["text"] = self.texts[idx]
+        return item
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __get_texts__(self):
+        return self.texts
+
+    def __get_labels__(self):
+        return self.labels
+
+
+def get_monolingual_dataset(
     tokenizer,
     max_length,
     stride_length=64,
@@ -137,11 +160,30 @@ def get_dataset(
     ]
 
     dataset_list = [
-        MonolingualDataset(name, path, stride_length, tokenizer, max_length)
+        MonolingualDataset(name, path, tokenizer, stride_length, max_length)
         for name, path in zip(dataset_name_list, dataset_path_list)
     ]
 
     return CombinedDataset(dataset_list)
+
+
+def get_text_complexity_dataset(
+    tokenizer,
+    max_length,
+    target_label="MOS",
+    input_path="../datasets/TextComplexity/text_complexity.csv"
+):
+    text_complexity_df = pd.read_csv(input_path).dropna()[["Sentence", target_label]]
+    texts = [unicodedata.normalize("NFC", s) for s in list(text_complexity_df["Sentence"].values)]
+    encodings = tokenizer(
+        texts,
+        truncation=True,
+        padding=True,
+        max_length=max_length
+    )
+    labels = list(text_complexity_df[target_label].values)
+
+    return TextComplexityDataset(texts, encodings, labels)
 
 
 def split_dataset(
@@ -150,15 +192,15 @@ def split_dataset(
     test_split=0.0,
     seed=40
 ):
-    train_split = 1 - val_split - test_split
+    val_size = int(val_split * len(dataset))
+    test_size = int(test_split * len(dataset))
+    train_size = len(dataset) - val_size - test_size
     generator = torch.Generator().manual_seed(seed)
-
-    assert 0 < train_split < 1 and 0 <= val_split < 1 and 0 <= test_split < 1
 
     if val_split > 0 and test_split > 0:
         train_set, val_set, test_set = random_split(
             dataset,
-            [train_split, val_split, test_split],
+            [train_size, val_size, test_size],
             generator=generator
         )
 
@@ -167,7 +209,7 @@ def split_dataset(
     elif val_split > 0:
         train_set, val_set = random_split(
             dataset,
-            [train_split, val_split],
+            [train_size, val_size],
             generator=generator
         )
 
@@ -176,7 +218,7 @@ def split_dataset(
     elif test_split > 0:
         train_set, test_set = random_split(
             dataset,
-            [train_split, test_split],
+            [train_size, test_size],
             generator=generator
         )
 
@@ -186,6 +228,7 @@ def split_dataset(
 def specify_config(
     model_path=None,
     special_tokens_dict=None,
+    head_type="causal",
     embd_pdrop=0.1,
     attn_pdrop=0.1,
     resid_pdrop=0.1,
@@ -204,6 +247,10 @@ def specify_config(
         "unk_token": "<|unk|>"
     } if special_tokens_dict is None else special_tokens_dict
 
+    head_type_list = ["causal", "regression"]
+    if head_type not in head_type_list:
+        raise ValueError("Unknown head type.")
+
     bos = special_tokens_dict["bos_token"]
     eos = special_tokens_dict["eos_token"]
 
@@ -218,26 +265,44 @@ def specify_config(
     tokenizer = GPT2TokenizerFast(tokenizer_object=tokenizer)
     num_added_tokens = tokenizer.add_special_tokens(special_tokens_dict)
 
-    model_config = AutoConfig.from_pretrained(
-        model_path,
-        bos_token_id=tokenizer.bos_token_id,
-        eos_token_id=tokenizer.eos_token_id,
-        pad_token_id=tokenizer.pad_token_id,
-    )
+    if head_type == "causal":
+        model_config = AutoConfig.from_pretrained(
+            model_path,
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    elif head_type == "regression":
+        model_config = AutoConfig.from_pretrained(
+            model_path,
+            num_labels=1,
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    else:
+        model_config = None
 
     model_config.embd_pdrop = embd_pdrop
     model_config.attn_pdrop = attn_pdrop
     model_config.resid_pdrop = resid_pdrop
 
-    model = AutoModelForCausalLM.from_pretrained(model_path, config=model_config)
-    model.resize_token_embeddings(len(tokenizer))
+    if head_type == "causal":
+        model = AutoModelForCausalLM.from_pretrained(model_path, config=model_config)
+    elif head_type == "regression":
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, config=model_config)
+    else:
+        model = None
 
-    if save_config:
-        tokenizer.save_pretrained(
-            os.path.join(output_path, f"{model_name}/Orig")
-        )
-        model.save_pretrained(
-            os.path.join(output_path, f"{model_name}/Orig")
-        )
+    if tokenizer and model:
+        model.resize_token_embeddings(len(tokenizer))
+
+        if save_config:
+            tokenizer.save_pretrained(
+                os.path.join(output_path, f"{model_name}/Orig/{head_type}")
+            )
+            model.save_pretrained(
+                os.path.join(output_path, f"{model_name}/Orig/{head_type}")
+            )
 
     return model, tokenizer

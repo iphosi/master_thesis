@@ -25,8 +25,10 @@ tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 input_ids = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).input_ids.to(device)
 
-adapter_path = "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16"
-leave_out = None
+adapter_path = "../adapters/bloom-350m-german/Compacter++/model_r8_n64"
+# adapter_path = "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16"
+layer_range = 2
+leave_out = [layer for layer in range(layer_range)]
 model.load_adapter(adapter_path, leave_out=leave_out)
 adapter_dicts = model.adapter_summary(as_dict=True)
 

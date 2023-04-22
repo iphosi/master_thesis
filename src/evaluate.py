@@ -18,6 +18,7 @@ from tqdm import tqdm
 import csv
 import os
 
+from preprocess import *
 from perplexity import *
 from simplicity import *
 from validity import *
@@ -54,7 +55,10 @@ class Evaluate:
             },
             "bloom-350m-german": {
                 "ORIG": "../adapters/bloom-350m-german/Orig",
-                "ADP_BN_S_r16": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16"
+                # "ADP_BN_S_r16": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16",
+                "TCP_ADP_BN_S_r16_MOS": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_mos",
+                "TCP_ADP_BN_S_r16_WLF": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_wlf",
+                "ADP_Comp++_r16_n64_rk8": "../adapters/bloom-350m-german/Compacter++/model_r16_n64_rk8",
             }
         } if model_dict is None else model_dict
         self.target_error_types = target_error_types
@@ -81,13 +85,18 @@ class Evaluate:
             last = leave_out[-1] + 1
             output_path = os.path.join(
                 output_path,
-                f"{model_name}/leave_out/L{first}-{last}/perplexity.csv"
+                f"{model_name}/leave_out/L{first}-{last}"
             )
         else:
             output_path = os.path.join(
                 output_path,
-                f"{model_name}/leave_out/Full/perplexity.csv"
+                f"{model_name}/leave_out/Full"
             )
+
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+
+        output_path = os.path.join(output_path, "perplexity.csv")
 
         # Dataset for Perplexity Evaluation
         dataset_df = pd.read_csv(input_path)
@@ -113,8 +122,12 @@ class Evaluate:
 
                 if model_path:
                     if tuning_method.startswith("ADP"):
-                        tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
-                        model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
+                        tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "causal")
+                        )
+                        model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "causal")
+                        )
                         model.load_adapter(model_path, leave_out=leave_out)
 
                         adapter_dicts = model.adapter_summary(as_dict=True)
@@ -127,8 +140,12 @@ class Evaluate:
 
                         model.to(self.device)
                     else:
-                        tokenizer = AutoTokenizer.from_pretrained(model_path)
-                        model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
+                        tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        )
+                        model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        ).to(self.device)
 
                     model.eval()
 
@@ -189,7 +206,7 @@ class Evaluate:
             )
             output_path = os.path.join(
                 output_path,
-                f"{model_name}/leave_out/L{first}-{last}/simplicity_validity.csv"
+                f"{model_name}/leave_out/L{first}-{last}"
             )
         else:
             input_path = os.path.join(
@@ -198,10 +215,16 @@ class Evaluate:
             )
             output_path = os.path.join(
                 output_path,
-                f"{model_name}/leave_out/Full/simplicity_validity.csv"
+                f"{model_name}/leave_out/Full"
             )
 
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+
+        output_path = os.path.join(output_path, "simplicity_validity.csv")
+
         # SpaCy Pipeline
+        spacy.require_gpu()
         nlp = spacy.load(spacy_model)
 
         text_df = pd.read_json(input_path)
@@ -229,7 +252,8 @@ class Evaluate:
                     ]["Generated Texts"].values[0]
                     docs = nlp.pipe(
                         texts,
-                        disable=['tok2vec', 'morphologizer', 'attribute_ruler', 'ner']
+                        disable=['tok2vec', 'morphologizer', 'attribute_ruler', 'ner'],
+                        batch_size=8
                     )
 
                     docs = list(docs)
@@ -288,13 +312,18 @@ class Evaluate:
             last = leave_out[-1] + 1
             output_path = os.path.join(
                 output_path,
-                f"{model_name}/leave_out/L{first}-{last}/generated_texts.json"
+                f"{model_name}/leave_out/L{first}-{last}"
             )
         else:
             output_path = os.path.join(
                 output_path,
-                f"{model_name}/leave_out/Full/generated_texts.json"
+                f"{model_name}/leave_out/Full"
             )
+
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+
+        output_path = os.path.join(output_path, "generated_texts.json")
 
         # Input Prompts for Readability Evaluation
         input_prompts = [
@@ -328,8 +357,12 @@ class Evaluate:
 
                 if model_path:
                     if tuning_method.startswith("ADP"):
-                        tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
-                        model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
+                        tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "causal")
+                        )
+                        model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "causal")
+                        )
                         model.load_adapter(model_path, leave_out=leave_out)
 
                         adapter_dicts = model.adapter_summary(as_dict=True)
@@ -342,8 +375,12 @@ class Evaluate:
 
                         model.to(self.device)
                     else:
-                        tokenizer = AutoTokenizer.from_pretrained(model_path)
-                        model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
+                        tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        )
+                        model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        ).to(self.device)
 
                     if model.config.pad_token_id:
                         pad_token_id = model.config.pad_token_id
@@ -425,7 +462,7 @@ class Evaluate:
         self,
         model_name,
         leave_out=None,
-        num_sample_texts=30,
+        num_sample_texts=25,
         num_sample_tokens=500,
         seed=40,
         use_cpu=True,
@@ -437,8 +474,13 @@ class Evaluate:
 
         output_path = os.path.join(
             output_path,
-            f"{model_name}/similarity.csv"
+            f"{model_name}"
         )
+
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+
+        output_path = os.path.join(output_path, "similarity.csv")
 
         dataset_df = pd.read_csv(input_path)
         dataset_df = pd.concat(
@@ -473,14 +515,22 @@ class Evaluate:
 
                 if model_path:
                     if tuning_method == "ORIG":
-                        src_tokenizer = AutoTokenizer.from_pretrained(model_path)
-                        src_model = AutoModelForCausalLM.from_pretrained(model_path)
+                        src_tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        )
+                        src_model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        )
                         for i in range(src_model.config.n_layer):
                             columns.append(f"Attention Layer {i + 1}")
 
                     elif tuning_method.startswith("ADP"):
-                        tgt_tokenizer = AutoTokenizer.from_pretrained(self.model_dict[model_name]["ORIG"])
-                        tgt_model = AutoModelForCausalLM.from_pretrained(self.model_dict[model_name]["ORIG"])
+                        tgt_tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "causal")
+                        )
+                        tgt_model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "causal")
+                        )
                         tgt_model.load_adapter(model_path, leave_out=leave_out)
 
                         adapter_dicts = tgt_model.adapter_summary(as_dict=True)
@@ -492,8 +542,12 @@ class Evaluate:
                             tgt_model.set_active_adapters(name)
 
                     else:
-                        tgt_tokenizer = AutoTokenizer.from_pretrained(model_path)
-                        tgt_model = AutoModelForCausalLM.from_pretrained(model_path)
+                        tgt_tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        )
+                        tgt_model = AutoModelForCausalLM.from_pretrained(
+                            os.path.join(model_path, "causal")
+                        )
 
                     if src_model and tgt_model:
 
@@ -534,6 +588,103 @@ class Evaluate:
         df = pd.DataFrame(data=data, columns=columns)
         df.to_csv(output_path, index=False)
 
+    def tcp(
+        self,
+        model_name,
+        target_label="MOS",
+        input_path="../datasets/TextComplexity/text_complexity.csv",
+        output_path="../evaluation",
+    ):
+        print("-" * 50)
+        print("Predicting Text Complexity:")
+
+        output_path = os.path.join(
+            output_path,
+            f"{model_name}"
+        )
+
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+
+        output_path = os.path.join(output_path, f"{target_label.lower()}_prediction.csv")
+
+        columns = [
+            "Model Name",
+            "Tuning Method",
+            f"{target_label} MSE",
+        ]
+
+        data = []
+
+        if model_name not in self.model_dict.keys():
+            raise ValueError("Invalid model name.")
+        else:
+            for tuning_method, model_path in self.model_dict[model_name].items():
+                print(f"{model_name} | {tuning_method}")
+                if model_path:
+                    if tuning_method.startswith("TCP_ADP") and tuning_method.endswith(target_label):
+                        tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "regression")
+                        )
+                        model = AutoModelForSequenceClassification.from_pretrained(
+                            os.path.join(self.model_dict[model_name]["ORIG"], "regression")
+                        )
+                        model.load_adapter(model_path, leave_out=None)
+
+                        adapter_dicts = model.adapter_summary(as_dict=True)
+                        adapter_names = [
+                            adapter_dict["name"] for adapter_dict in adapter_dicts
+                            if adapter_dict["name"] != "Full model"
+                        ]
+                        for name in adapter_names:
+                            model.set_active_adapters(name)
+
+                        model.to(self.device)
+                    elif tuning_method == "ORIG":
+                        tokenizer = AutoTokenizer.from_pretrained(
+                            os.path.join(model_path, "regression")
+                        )
+                        model = AutoModelForSequenceClassification.from_pretrained(
+                            os.path.join(model_path, "regression")
+                        ).to(self.device)
+                    else:
+                        continue
+
+                    model.eval()
+
+                    if hasattr(model.config, "n_positions"):
+                        max_length = model.config.n_positions
+                    elif hasattr(model.config, "seq_length"):
+                        max_length = model.config.seq_length
+                    else:
+                        max_length = 1024
+
+                    dataset = get_text_complexity_dataset(
+                        tokenizer=tokenizer,
+                        max_length=max_length,
+                        target_label=target_label,
+                        input_path=input_path
+                    )
+
+                    _, _, test_set = split_dataset(dataset=dataset, val_split=0.1, test_split=0.1)
+
+                    mse_list = []
+                    for test_data in test_set:
+                        input_ids = test_data["input_ids"].view(1, -1).to(self.device)
+                        labels = torch.tensor(test_data["labels"]).to(self.device)
+                        mse = model(input_ids, labels=labels).loss.item()
+                        mse_list.append(mse)
+
+                    avg_mse = mean(mse_list)
+
+                    data.append([model_name, tuning_method, round(avg_mse, 2)])
+
+                else:
+                    print("Model path is not defined.")
+
+        df = pd.DataFrame(data=data, columns=columns)
+        df.to_csv(output_path, index=False)
+
 
 if __name__ == "__main__":
     model_list = [
@@ -542,10 +693,11 @@ if __name__ == "__main__":
     ]
     model_idx = 0
     evaluate = Evaluate()
-    for layer_range in range(25):
-        leave_out_layers = [layer for layer in range(layer_range)]
-        # evaluate.ppl_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
-        # evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
-        evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
+    # for layer_range in range(0, 8):
+    #     leave_out_layers = [layer for layer in range(layer_range)]
+    #     evaluate.ppl_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
+    #     evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
+    #     evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     # evaluate.rsa(model_name=model_list[model_idx], use_cpu=True)
+    evaluate.tcp(model_name=model_list[model_idx], target_label="WLF")
     print("End")
