@@ -2,6 +2,7 @@ import glob
 import pandas as pd
 import os
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset, ConcatDataset, random_split
 import unicodedata
@@ -20,7 +21,7 @@ from tokenizers.processors import TemplateProcessing
 
 
 class AbstractDataset(Dataset, ABC):
-    def __init__(self, text_dataframe, tokenizer, stride_length, max_len):
+    def __init__(self, text_dataframe, tokenizer, stride_length, max_length):
         """
         text_dataframe: pandas dataframe with columns topic, phrase
         """
@@ -34,7 +35,7 @@ class AbstractDataset(Dataset, ABC):
         self.encodings = tokenizer(
             text_list,
             truncation=True,
-            max_length=max_len,
+            max_length=max_length,
             stride=stride_length,
             return_special_tokens_mask=False,
             return_overflowing_tokens=False,
@@ -83,17 +84,24 @@ class AbstractDataset(Dataset, ABC):
 
 
 class MonolingualDataset(AbstractDataset):
-    def __init__(self, name, csv_file, tokenizer, stride_length, max_len):
+    def __init__(self, name, csv_file, tokenizer, stride_length, max_length, num_subtexts):
         phrases = pd.read_csv(csv_file).dropna()
-        texts = phrases.sort_values(["phrase_number"]).groupby(["topic"])["phrase"].apply('\n'.join).reset_index()
+        text_dataframe = phrases.sort_values(["phrase_number"]).groupby(["topic"])["phrase"]
+        text_dataframe = text_dataframe.apply(np.array_split, indices_or_sections=num_subtexts).apply(self._join_texts)
+        text_dataframe = text_dataframe.reset_index().explode("phrase")
+
         self.name = name
-        super().__init__(texts, tokenizer, stride_length, max_len)
+        super().__init__(text_dataframe, tokenizer, stride_length, max_length)
 
     def get_name(self) -> str:
         return self.name
 
     def get_columns(self) -> Iterable[str]:
         return self.texts.columns
+
+    @staticmethod
+    def _join_texts(series_list):
+        return list(map(lambda s: "\n".join(s.values), series_list))
 
 
 class CombinedDataset(ConcatDataset):
@@ -149,6 +157,7 @@ def get_monolingual_dataset(
     tokenizer,
     max_length,
     stride_length=64,
+    num_subtexts=4,
     input_path="../datasets/monolingual Leichte Sprache"
 ):
     dataset_path_list = glob.glob(f"{input_path}/*.csv")
@@ -160,7 +169,7 @@ def get_monolingual_dataset(
     ]
 
     dataset_list = [
-        MonolingualDataset(name, path, tokenizer, stride_length, max_length)
+        MonolingualDataset(name, path, tokenizer, stride_length, max_length, num_subtexts)
         for name, path in zip(dataset_name_list, dataset_path_list)
     ]
 
