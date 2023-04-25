@@ -85,9 +85,9 @@ class AbstractDataset(Dataset, ABC):
 
 class MonolingualDataset(AbstractDataset):
     def __init__(self, name, csv_file, tokenizer, stride_length, max_length, num_subtexts):
-        phrases = pd.read_csv(csv_file).dropna()
-        text_dataframe = phrases.sort_values(["phrase_number"]).groupby(["topic"])["phrase"]
-        text_dataframe = text_dataframe.apply(np.array_split, indices_or_sections=num_subtexts).apply(self._join_texts)
+        text_dataframe = pd.read_csv(csv_file).dropna()
+        text_dataframe = text_dataframe.sort_values(["phrase_number"]).groupby(["topic"])["phrase"]
+        text_dataframe = text_dataframe.apply(np.array_split, indices_or_sections=num_subtexts).apply(self.join_texts)
         text_dataframe = text_dataframe.reset_index().explode("phrase")
 
         self.name = name
@@ -100,11 +100,11 @@ class MonolingualDataset(AbstractDataset):
         return self.texts.columns
 
     @staticmethod
-    def _join_texts(series_list):
+    def join_texts(series_list):
         return list(map(lambda s: "\n".join(s.values), series_list))
 
 
-class CombinedDataset(ConcatDataset):
+class ConcatMonolingualDataset(ConcatDataset):
 
     def __init__(self, datasets: Iterable[AbstractDataset]):
         super().__init__(datasets)
@@ -132,15 +132,24 @@ class CombinedDataset(ConcatDataset):
 
 
 class TextComplexityDataset(Dataset):
-    def __init__(self, texts, encodings, labels):
+    def __init__(self, csv_file, text_column_name, target_label, tokenizer, max_length, stride_length):
+        text_dataframe = pd.read_csv(csv_file).dropna()[[text_column_name, target_label]]
+        texts = [unicodedata.normalize("NFC", s) for s in list(text_dataframe[text_column_name].values)]
+        labels = list(text_dataframe[target_label].values)
+
         self.texts = texts
-        self.encodings = encodings
+        self.encodings = tokenizer(
+            texts,
+            truncation=True,
+            max_length=max_length,
+            stride=stride_length,
+            add_special_tokens=True
+        )
         self.labels = labels
 
     def __getitem__(self, idx):
         item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
         item["labels"] = float(self.labels[idx])
-        item["text"] = self.texts[idx]
         return item
 
     def __len__(self):
@@ -151,6 +160,11 @@ class TextComplexityDataset(Dataset):
 
     def __get_labels__(self):
         return self.labels
+
+
+class ConcatTextComplexityDataset(ConcatDataset):
+    def __init__(self, datasets: Iterable[Dataset]):
+        super().__init__(datasets)
 
 
 def get_monolingual_dataset(
@@ -173,26 +187,24 @@ def get_monolingual_dataset(
         for name, path in zip(dataset_name_list, dataset_path_list)
     ]
 
-    return CombinedDataset(dataset_list)
+    return ConcatMonolingualDataset(dataset_list)
 
 
 def get_text_complexity_dataset(
     tokenizer,
     max_length,
+    stride_length=64,
+    text_column_name="Sentence",
     target_label="MOS",
-    input_path="../datasets/TextComplexity/text_complexity.csv"
+    input_path="../datasets/TextComplexity/monolingual"
 ):
-    text_complexity_df = pd.read_csv(input_path).dropna()[["Sentence", target_label]]
-    texts = [unicodedata.normalize("NFC", s) for s in list(text_complexity_df["Sentence"].values)]
-    encodings = tokenizer(
-        texts,
-        truncation=True,
-        padding=True,
-        max_length=max_length
-    )
-    labels = list(text_complexity_df[target_label].values)
+    dataset_path_list = glob.glob(f"{input_path}/*.csv")
+    dataset_list = [
+        TextComplexityDataset(path, text_column_name, target_label, tokenizer, max_length, stride_length)
+        for path in dataset_path_list
+    ]
 
-    return TextComplexityDataset(texts, encodings, labels)
+    return ConcatTextComplexityDataset(dataset_list)
 
 
 def split_dataset(

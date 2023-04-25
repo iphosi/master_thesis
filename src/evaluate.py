@@ -24,6 +24,7 @@ from simplicity import *
 from validity import *
 from rsa import *
 from textstat import textstat
+from nltk.tokenize import word_tokenize
 
 
 class Evaluate:
@@ -190,7 +191,6 @@ class Evaluate:
         self,
         model_name,
         leave_out,
-        spacy_model="de_dep_news_trf",
         input_path="../evaluation",
         output_path="../evaluation"
     ):
@@ -223,10 +223,6 @@ class Evaluate:
 
         output_path = os.path.join(output_path, "simplicity_validity.csv")
 
-        # SpaCy Pipeline
-        spacy.require_gpu()
-        nlp = spacy.load(spacy_model)
-
         text_df = pd.read_json(input_path)
 
         columns = [
@@ -250,17 +246,10 @@ class Evaluate:
                     texts = text_df.loc[
                         (text_df["Model Name"] == model_name) & (text_df["Tuning Method"] == tuning_method)
                     ]["Generated Texts"].values[0]
-                    docs = nlp.pipe(
-                        texts,
-                        disable=['tok2vec', 'morphologizer', 'attribute_ruler', 'ner'],
-                        batch_size=8
-                    )
-
-                    docs = list(docs)
 
                     avg_fre = mean(map(textstat.flesch_reading_ease, texts))
-                    avg_word_log_freq = mean(map(get_log_freq, docs))
-                    num_sentences = sum(map(count_sentences, docs))
+                    avg_word_log_freq = mean(map(lambda t: get_log_freq_nltk(t, language=self.language), texts))
+                    num_sentences = sum(map(lambda t: count_sentences_nltk(t, language=self.language), texts))
                     num_newlines = sum(map(count_newlines, texts))
                     num_errors = count_errors(
                         texts=texts,
@@ -693,11 +682,11 @@ if __name__ == "__main__":
     ]
     model_idx = 0
     evaluate = Evaluate()
-    # for layer_range in range(0, 8):
-    #     leave_out_layers = [layer for layer in range(layer_range)]
+    for layer_range in range(0, 1):
+        leave_out_layers = [layer for layer in range(layer_range)]
     #     evaluate.ppl_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     #     evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
-    #     evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
+        evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     # evaluate.rsa(model_name=model_list[model_idx], use_cpu=True)
     evaluate.tcp(model_name=model_list[model_idx], target_label="WLF")
     print("End")
