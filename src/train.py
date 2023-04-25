@@ -27,6 +27,8 @@ from trainer import ContrastiveTrainer
 
 from argparse import ArgumentParser
 
+import wandb
+
 
 def train_adapter(
     device=None,
@@ -101,6 +103,7 @@ def train_adapter(
     model.train_adapter(adapter_setup=adapter_name)
 
     training_args = TrainingArguments(
+        report_to=["wandb"],
         output_dir=f"../adapters/{model_name}/{adapter_name}/checkpoints",
         do_train=True,
         remove_unused_columns=False,
@@ -152,6 +155,8 @@ def train_adapter(
         print("Empty checkpoint directory. Train the adapter from scratch.")
         trainer.train()
 
+    wandb.finish()
+
     model.save_adapter(
         save_directory=f"../adapters/{model_name}/{adapter_name}/model",
         adapter_name=adapter_name
@@ -159,6 +164,8 @@ def train_adapter(
 
 
 if __name__ == "__main__":
+    wandb.login()
+
     parser = ArgumentParser()
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--adapter_name", type=str, default="Adapter_Bottleneck_Sequential")
