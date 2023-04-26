@@ -33,6 +33,8 @@ def train_adapter(
     adapter_name=None,
     adapter_dict=None,
     checkpoint_name=None,
+    model_path="malteos/bloom-350m-german",
+    data_path="../datasets/TextComplexity/monolingual",
     batch_size=2,
     gradient_accumulation_steps=4,
     learning_rate=4e-4,
@@ -40,8 +42,10 @@ def train_adapter(
     early_stopping_patience=4,
     text_column_name="phrase",
     target_label="FRE",
-    model_path="malteos/bloom-350m-german",
-    data_path="../datasets/TextComplexity/monolingual"
+    do_rescaling=True,
+    max_value=100,
+    min_value=0,
+    rescaling_factor=10
 ):
     assert text_column_name in ["Sentence", "phrase"]
     assert target_label in ["MOS", "FRE", "WLF"]
@@ -77,6 +81,10 @@ def train_adapter(
         max_length=max_length,
         text_column_name=text_column_name,
         target_label=target_label,
+        do_rescaling=do_rescaling,
+        max_value=max_value,
+        min_value=min_value,
+        rescaling_factor=rescaling_factor,
         input_path=data_path
     )
 
@@ -173,13 +181,19 @@ if __name__ == "__main__":
     parser.add_argument("--model_path", type=str, default="malteos/bloom-350m-german")
     parser.add_argument("--data_path", type=str, default="../datasets/TextComplexity/monolingual")
     parser.add_argument("--checkpoint_name", type=str, default=None)
+
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=4e-4)
     parser.add_argument("--num_train_epochs", type=int, default=4)
     parser.add_argument("--early_stopping_patience", type=int, default=4)
+
     parser.add_argument("--text_column_name", type=str, default="phrase")
     parser.add_argument("--target_label", type=str, default="FRE")
+    parser.add_argument("--do_rescaling", type=bool, default=True)
+    parser.add_argument("--max_value", type=float, default=100)
+    parser.add_argument("--min_value", type=float, default=0)
+    parser.add_argument("--rescaling_factor", type=float, default=10)
 
     args = parser.parse_args()
 
@@ -195,7 +209,11 @@ if __name__ == "__main__":
         num_train_epochs=args.num_train_epochs,
         early_stopping_patience=args.early_stopping_patience,
         text_column_name=args.text_column_name,
-        target_label=args.target_label
+        target_label=args.target_label,
+        do_rescaling=args.do_rescaling,
+        max_value=args.max_value,
+        min_value=args.min_value,
+        rescaling_factor=args.rescaling_factor
     )
 
 

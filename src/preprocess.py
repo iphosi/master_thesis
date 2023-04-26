@@ -165,17 +165,28 @@ class TextComplexityDataset(Dataset):
 
 
 class ConcatTextComplexityDataset(ConcatDataset):
-    def __init__(self, datasets: Iterable[TextComplexityDataset], do_scaling=True):
-        self.max = max(dataset.max for dataset in datasets)
-        self.min = min(dataset.min for dataset in datasets)
+    def __init__(
+        self,
+        datasets: Iterable[TextComplexityDataset],
+        do_rescaling=True,
+        max_value=None,
+        min_value=None,
+        rescaling_factor=10
+    ):
+        self.max = max(dataset.max for dataset in datasets) if max_value is None else max_value
+        self.min = min(dataset.min for dataset in datasets) if min_value is None else min_value
+        self.rescaling_factor = rescaling_factor
 
-        if do_scaling:
+        if do_rescaling:
             for dataset in datasets:
-                dataset.labels = list(
-                    map(lambda l: (l - self.min) / (self.max - self.min), dataset.labels)
-                )
+                dataset.labels = list(map(self.rescale_label, dataset.labels))
 
         super().__init__(datasets)
+
+    def rescale_label(self, label):
+        label = self.max if label > self.max else label
+        label = self.min if label < self.min else label
+        return (label - self.min) / (self.max - self.min) * self.rescaling_factor
 
 
 def get_monolingual_dataset(
@@ -205,9 +216,12 @@ def get_text_complexity_dataset(
     tokenizer,
     max_length,
     stride_length=64,
-    text_column_name="Sentence",
-    target_label="MOS",
-    do_scaling=True,
+    text_column_name="phrase",
+    target_label="FRE",
+    do_rescaling=True,
+    max_value=100,
+    min_value=0,
+    rescaling_factor=10,
     input_path="../datasets/TextComplexity/monolingual"
 ):
     dataset_path_list = glob.glob(f"{input_path}/*.csv")
@@ -217,7 +231,7 @@ def get_text_complexity_dataset(
         for path in dataset_path_list
     ]
 
-    return ConcatTextComplexityDataset(dataset_list, do_scaling)
+    return ConcatTextComplexityDataset(dataset_list, do_rescaling, max_value, min_value, rescaling_factor)
 
 
 def split_dataset(
