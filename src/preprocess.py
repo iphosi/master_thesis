@@ -106,7 +106,7 @@ class MonolingualDataset(AbstractDataset):
 
 class ConcatMonolingualDataset(ConcatDataset):
 
-    def __init__(self, datasets: Iterable[AbstractDataset]):
+    def __init__(self, datasets: Iterable[MonolingualDataset]):
         super().__init__(datasets)
 
     def get_names(self) -> Iterable[str]:
@@ -146,6 +146,8 @@ class TextComplexityDataset(Dataset):
             add_special_tokens=True
         )
         self.labels = labels
+        self.max = max(labels)
+        self.min = min(labels)
 
     def __getitem__(self, idx):
         item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
@@ -163,7 +165,16 @@ class TextComplexityDataset(Dataset):
 
 
 class ConcatTextComplexityDataset(ConcatDataset):
-    def __init__(self, datasets: Iterable[Dataset]):
+    def __init__(self, datasets: Iterable[TextComplexityDataset], do_scaling=True):
+        self.max = max(dataset.max for dataset in datasets)
+        self.min = min(dataset.min for dataset in datasets)
+
+        if do_scaling:
+            for dataset in datasets:
+                dataset.labels = list(
+                    map(lambda l: (l - self.min) / (self.max - self.min), dataset.labels)
+                )
+
         super().__init__(datasets)
 
 
@@ -196,15 +207,17 @@ def get_text_complexity_dataset(
     stride_length=64,
     text_column_name="Sentence",
     target_label="MOS",
+    do_scaling=True,
     input_path="../datasets/TextComplexity/monolingual"
 ):
     dataset_path_list = glob.glob(f"{input_path}/*.csv")
+
     dataset_list = [
         TextComplexityDataset(path, text_column_name, target_label, tokenizer, max_length, stride_length)
         for path in dataset_path_list
     ]
 
-    return ConcatTextComplexityDataset(dataset_list)
+    return ConcatTextComplexityDataset(dataset_list, do_scaling)
 
 
 def split_dataset(
