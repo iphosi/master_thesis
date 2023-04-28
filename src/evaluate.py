@@ -1,7 +1,9 @@
 import pandas as pd
+import torch
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
+    AutoModelForSequenceClassification,
     RepetitionPenaltyLogitsProcessor,
     TemperatureLogitsWarper,
     LogitsProcessorList
@@ -55,11 +57,11 @@ class Evaluate:
                 # "ADP_LoRA": "../adapters/german-gpt2/Adapter_LoRA/model",
             },
             "bloom-350m-german": {
+                "TCP_ADP_BN_S_r16_FRE": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_fre",
                 "ORIG": "../adapters/bloom-350m-german/Orig",
                 # "ADP_BN_S_r16": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16",
-                "TCP_ADP_BN_S_r16_MOS": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_mos",
-                "TCP_ADP_BN_S_r16_WLF": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_wlf",
-                "ADP_Comp++_r16_n64_rk8": "../adapters/bloom-350m-german/Compacter++/model_r16_n64_rk8",
+                # "TCP_ADP_BN_S_r16_WLF": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_wlf",
+                # "ADP_Comp++_r16_n64_rk8": "../adapters/bloom-350m-german/Compacter++/model_r16_n64_rk8",
             }
         } if model_dict is None else model_dict
         self.target_error_types = target_error_types
@@ -150,22 +152,23 @@ class Evaluate:
 
                     model.eval()
 
-                    simple_ppl = get_mod_ppl(
-                        model=model,
-                        tokenizer=tokenizer,
-                        texts=simple_texts,
-                        max_length=max_length,
-                        stride=stride,
-                        device=self.device
-                    )
-                    normal_ppl = get_mod_ppl(
-                        model=model,
-                        tokenizer=tokenizer,
-                        texts=normal_texts,
-                        max_length=max_length,
-                        stride=stride,
-                        device=self.device
-                    )
+                    with torch.no_grad():
+                        simple_ppl = get_mod_ppl(
+                            model=model,
+                            tokenizer=tokenizer,
+                            texts=simple_texts,
+                            max_length=max_length,
+                            stride=stride,
+                            device=self.device
+                        )
+                        normal_ppl = get_mod_ppl(
+                            model=model,
+                            tokenizer=tokenizer,
+                            texts=normal_texts,
+                            max_length=max_length,
+                            stride=stride,
+                            device=self.device
+                        )
 
                     param = sum(
                         summary["%param"] for summary in model.adapter_summary(as_dict=True)
@@ -384,53 +387,54 @@ class Evaluate:
 
                     batch_output_ids = []
 
-                    for input_ids in tqdm(batch_input_ids):
-                        # Contrastive Search
-                        batch_output_ids.append(
-                            model.generate(
-                                input_ids=input_ids,
-                                logits_processor=logits_processor,
-                                repetition_penalty=repetition_penalty,
-                                temperature=temperature,
-                                max_new_tokens=max_new_tokens,
-                                penalty_alpha=penalty_alpha,
-                                top_k=top_k,
-                                pad_token_id=pad_token_id,
-                                no_repeat_ngram_size=no_repeat_ngram_size
+                    with torch.no_grad():
+                        for input_ids in tqdm(batch_input_ids):
+                            # Contrastive Search
+                            batch_output_ids.append(
+                                model.generate(
+                                    input_ids=input_ids,
+                                    logits_processor=logits_processor,
+                                    repetition_penalty=repetition_penalty,
+                                    temperature=temperature,
+                                    max_new_tokens=max_new_tokens,
+                                    penalty_alpha=penalty_alpha,
+                                    top_k=top_k,
+                                    pad_token_id=pad_token_id,
+                                    no_repeat_ngram_size=no_repeat_ngram_size
+                                )
                             )
-                        )
 
-                        # Multinomial Sampling
-                        batch_output_ids.append(
-                            model.generate(
-                                input_ids=input_ids,
-                                logits_processor=logits_processor,
-                                repetition_penalty=repetition_penalty,
-                                temperature=temperature,
-                                max_new_tokens=max_new_tokens,
-                                do_sample=True,
-                                top_k=top_k,
-                                top_p=top_p,
-                                pad_token_id=pad_token_id,
-                                no_repeat_ngram_size=no_repeat_ngram_size
+                            # Multinomial Sampling
+                            batch_output_ids.append(
+                                model.generate(
+                                    input_ids=input_ids,
+                                    logits_processor=logits_processor,
+                                    repetition_penalty=repetition_penalty,
+                                    temperature=temperature,
+                                    max_new_tokens=max_new_tokens,
+                                    do_sample=True,
+                                    top_k=top_k,
+                                    top_p=top_p,
+                                    pad_token_id=pad_token_id,
+                                    no_repeat_ngram_size=no_repeat_ngram_size
+                                )
                             )
-                        )
 
-                        # Beam Search
-                        batch_output_ids.append(
-                            model.generate(
-                                input_ids=input_ids,
-                                logits_processor=logits_processor,
-                                repetition_penalty=repetition_penalty,
-                                temperature=temperature,
-                                max_new_tokens=max_new_tokens,
-                                num_beams=num_beams,
-                                do_sample=False,
-                                pad_token_id=pad_token_id,
-                                no_repeat_ngram_size=no_repeat_ngram_size,
-                                early_stopping=early_stopping
+                            # Beam Search
+                            batch_output_ids.append(
+                                model.generate(
+                                    input_ids=input_ids,
+                                    logits_processor=logits_processor,
+                                    repetition_penalty=repetition_penalty,
+                                    temperature=temperature,
+                                    max_new_tokens=max_new_tokens,
+                                    num_beams=num_beams,
+                                    do_sample=False,
+                                    pad_token_id=pad_token_id,
+                                    no_repeat_ngram_size=no_repeat_ngram_size,
+                                    early_stopping=early_stopping
+                                )
                             )
-                        )
 
                     batch_output_texts = [
                         tokenizer.decode(
@@ -550,22 +554,23 @@ class Evaluate:
                         print(f"Source Model: {model_name} | ORIG")
                         print(f"Target Model: {model_name} | {tuning_method}")
 
-                        src_rep_spaces = get_rep_spaces(
-                            model=src_model,
-                            tokenizer=src_tokenizer,
-                            texts=sample_texts,
-                            device=device,
-                            num_sample_tokens=num_sample_tokens,
-                            seed=seed
-                        )
-                        tgt_rep_spaces = get_rep_spaces(
-                            model=tgt_model,
-                            tokenizer=tgt_tokenizer,
-                            texts=sample_texts,
-                            device=device,
-                            num_sample_tokens=num_sample_tokens,
-                            seed=seed
-                        )
+                        with torch.no_grad():
+                            src_rep_spaces = get_rep_spaces(
+                                model=src_model,
+                                tokenizer=src_tokenizer,
+                                texts=sample_texts,
+                                device=device,
+                                num_sample_tokens=num_sample_tokens,
+                                seed=seed
+                            )
+                            tgt_rep_spaces = get_rep_spaces(
+                                model=tgt_model,
+                                tokenizer=tgt_tokenizer,
+                                texts=sample_texts,
+                                device=device,
+                                num_sample_tokens=num_sample_tokens,
+                                seed=seed
+                            )
 
                         scores = get_pearson_scores(src_rep_spaces, tgt_rep_spaces, device)
 
@@ -580,8 +585,8 @@ class Evaluate:
     def tcp(
         self,
         model_name,
-        target_label="MOS",
-        input_path="../datasets/TextComplexity/text_complexity.csv",
+        target_label="FRE",
+        input_path="../datasets/TextComplexity/monolingual",
         output_path="../evaluation",
     ):
         print("-" * 50)
@@ -648,21 +653,29 @@ class Evaluate:
                     else:
                         max_length = 1024
 
+                    if target_label == "FRE":
+                        do_rescaling = True
+                    else:
+                        do_rescaling = False
+
                     dataset = get_text_complexity_dataset(
                         tokenizer=tokenizer,
                         max_length=max_length,
                         target_label=target_label,
+                        do_rescaling=do_rescaling,
                         input_path=input_path
                     )
 
                     _, _, test_set = split_dataset(dataset=dataset, val_split=0.1, test_split=0.1)
 
                     mse_list = []
-                    for test_data in test_set:
-                        input_ids = test_data["input_ids"].view(1, -1).to(self.device)
-                        labels = torch.tensor(test_data["labels"]).to(self.device)
-                        mse = model(input_ids, labels=labels).loss.item()
-                        mse_list.append(mse)
+                    with torch.no_grad():
+                        for test_data in tqdm(test_set):
+                            input_ids = test_data["input_ids"].view(1, -1).to(self.device)
+                            labels = torch.tensor(test_data["labels"]).to(self.device)
+                            output = model(input_ids, labels=labels)
+                            mse = output.loss.item()
+                            mse_list.append(mse)
 
                     avg_mse = mean(mse_list)
 
@@ -682,11 +695,11 @@ if __name__ == "__main__":
     ]
     model_idx = 0
     evaluate = Evaluate()
-    for layer_range in range(0, 1):
-        leave_out_layers = [layer for layer in range(layer_range)]
+    # for layer_range in range(0, 1):
+    #     leave_out_layers = [layer for layer in range(layer_range)]
     #     evaluate.ppl_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     #     evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
-        evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
+    #     evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     # evaluate.rsa(model_name=model_list[model_idx], use_cpu=True)
-    evaluate.tcp(model_name=model_list[model_idx], target_label="WLF")
+    evaluate.tcp(model_name=model_list[model_idx], target_label="FRE")
     print("End")

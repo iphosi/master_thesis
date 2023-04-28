@@ -56,6 +56,7 @@ def train_adapter(
         model, tokenizer = specify_config(model_path, head_type="causal")
         model_name = model_path.split("/")[-1]
 
+    print("-" * 50)
     print(f"Baseline model: {model_name}")
 
     model.to(device)
@@ -107,6 +108,7 @@ def train_adapter(
     else:
         print("Train the adapter from scratch.")
         model.add_adapter(adapter_name=adapter_name, config=adapter_config, overwrite_ok=True)
+    print("-" * 50)
 
     assert adapter_name in model.adapter_summary()
 

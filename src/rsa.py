@@ -40,7 +40,7 @@ def get_rep_spaces(
     )
 
     rep_spaces = []
-    torch.manual_seed(seed)
+    generator = torch.Generator().manual_seed(seed)
 
     for layer_hidden_states in zip(*batch_hidden_states):
         layer_hidden_states = torch.cat(
@@ -53,7 +53,8 @@ def get_rep_spaces(
             sample_idx = torch.randint(
                 low=0,
                 high=num_tokens,
-                size=(num_sample_tokens,)
+                size=(num_sample_tokens,),
+                generator=generator
             )
             sim_matrix = pairwise_cosine_similarity(layer_hidden_states[sample_idx, :])
 
