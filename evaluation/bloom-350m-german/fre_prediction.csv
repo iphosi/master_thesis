@@ -1,0 +1,2 @@
+Model Name,Tuning Method,FRE MSE
+bloom-350m-german,TCP_ADP_BN_S_r16_FRE,32.29

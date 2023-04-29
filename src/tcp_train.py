@@ -30,7 +30,7 @@ import wandb
 
 def train_adapter(
     device=None,
-    adapter_name=None,
+    adapter_type=None,
     adapter_dict=None,
     checkpoint_name=None,
     model_path="malteos/bloom-350m-german",
@@ -79,6 +79,9 @@ def train_adapter(
     else:
         max_length = 1024
 
+    print("-" * 50)
+    print(f"Dataset: {target_label}")
+
     dataset = get_text_complexity_dataset(
         tokenizer=tokenizer,
         max_length=max_length,
@@ -95,33 +98,36 @@ def train_adapter(
 
     # Adapter
     adapter_dict = {
-        "Adapter_Bottleneck_Sequential_TCP": AdapterConfig(
+        f"Adapter_Bottleneck_Sequential": AdapterConfig(
             mh_adapter=False,
             output_adapter=True,
             reduction_factor=16,
             non_linearity="gelu"
         ),
-        "Compacter++_TCP": CompacterPlusPlusConfig(
+        f"Compacter++": CompacterPlusPlusConfig(
             reduction_factor=16,
             phm_dim=4,
             phm_rank=14
         )
     } if adapter_dict is None else adapter_dict
 
-    adapter_config = adapter_dict[adapter_name]
+    adapter_config = adapter_dict[adapter_type]
+
+    adapter_name = f"{adapter_type}_{target_label}"
 
     if checkpoint_name:
         checkpoint_path = f"../adapters/{model_name}/{adapter_name}/pretrained/{checkpoint_name}/{adapter_name}"
     else:
         checkpoint_path = ""
 
+    print("-" * 50)
     if os.path.exists(checkpoint_path):
         print("Resume from checkpoint.")
         model.load_adapter(adapter_name_or_path=checkpoint_path)
     else:
         print("Train the adapter from scratch.")
         model.add_adapter(adapter_name=adapter_name, config=adapter_config, overwrite_ok=True)
-    print("-" * 50)
+    print(model.adapter_summary())
 
     assert adapter_name in model.adapter_summary()
 
@@ -130,7 +136,7 @@ def train_adapter(
 
     training_args = TrainingArguments(
         report_to=["wandb"],
-        output_dir=f"./adapters/{model_name}/{adapter_name}/checkpoints",
+        output_dir=f"../adapters/{model_name}/{adapter_name}/checkpoints",
         do_train=True,
         remove_unused_columns=False,
         per_device_train_batch_size=batch_size,
@@ -180,7 +186,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--adapter_name", type=str, default="Adapter_Bottleneck_Sequential_TCP")
+    parser.add_argument("--adapter_type", type=str, default="Adapter_Bottleneck_Sequential")
     parser.add_argument("--model_path", type=str, default="malteos/bloom-350m-german")
     parser.add_argument("--data_path", type=str, default="../datasets/TextComplexity/monolingual")
     parser.add_argument("--checkpoint_name", type=str, default=None)
@@ -205,7 +211,7 @@ if __name__ == "__main__":
 
     train_adapter(
         device=args.device,
-        adapter_name=args.adapter_name,
+        adapter_type=args.adapter_type,
         model_path=args.model_path,
         data_path=args.data_path,
         checkpoint_name=args.checkpoint_name,

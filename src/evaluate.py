@@ -57,10 +57,10 @@ class Evaluate:
                 # "ADP_LoRA": "../adapters/german-gpt2/Adapter_LoRA/model",
             },
             "bloom-350m-german": {
-                "TCP_ADP_BN_S_r16_FRE": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_fre",
                 "ORIG": "../adapters/bloom-350m-german/Orig",
+                "TCP_ADP_BN_S_r16_FRE": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_FRE/model_r16",
                 # "ADP_BN_S_r16": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16",
-                # "TCP_ADP_BN_S_r16_WLF": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_TCP/model_r16_wlf",
+                "TCP_ADP_BN_S_r16_WLF": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_WLF/model_r16",
                 # "ADP_Comp++_r16_n64_rk8": "../adapters/bloom-350m-german/Compacter++/model_r16_n64_rk8",
             }
         } if model_dict is None else model_dict
@@ -635,13 +635,10 @@ class Evaluate:
 
                         model.to(self.device)
                     elif tuning_method == "ORIG":
-                        tokenizer = AutoTokenizer.from_pretrained(
-                            os.path.join(model_path, "regression")
-                        )
-                        model = AutoModelForSequenceClassification.from_pretrained(
-                            os.path.join(model_path, "regression")
-                        ).to(self.device)
+                        print("Skip original model.")
+                        continue
                     else:
+                        print("Skip non-target model.")
                         continue
 
                     model.eval()
@@ -658,9 +655,15 @@ class Evaluate:
                     else:
                         do_rescaling = False
 
+                    if target_label == "MOS":
+                        text_column_name = "Sentence"
+                    else:
+                        text_column_name = "phrase"
+
                     dataset = get_text_complexity_dataset(
                         tokenizer=tokenizer,
                         max_length=max_length,
+                        text_column_name=text_column_name,
                         target_label=target_label,
                         do_rescaling=do_rescaling,
                         input_path=input_path
@@ -701,5 +704,5 @@ if __name__ == "__main__":
     #     evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
     #     evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     # evaluate.rsa(model_name=model_list[model_idx], use_cpu=True)
-    evaluate.tcp(model_name=model_list[model_idx], target_label="FRE")
+    evaluate.tcp(model_name=model_list[model_idx], target_label="WLF")
     print("End")
