@@ -41,16 +41,27 @@ def train_adapter(
     num_train_epochs=2,
     num_steps=1500,
     early_stopping_patience=4,
+    train_head=False,
     text_column_name="phrase",
-    target_label="FRE",
-    do_rescaling=True,
+    target_label="WLF",
+    do_rescaling=False,
     max_value=100,
     min_value=0,
     rescaling_factor=10,
-    disable_tqdm=True
+    disable_tqdm=False
 ):
     assert text_column_name in ["Sentence", "phrase"]
     assert target_label in ["MOS", "FRE", "WLF"]
+
+    if target_label == "FRE":
+        assert do_rescaling is True
+    else:
+        assert do_rescaling is False
+
+    if target_label == "MOS":
+        assert text_column_name == "Sentence"
+    else:
+        assert text_column_name == "phrase"
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -67,9 +78,6 @@ def train_adapter(
     print(f"Baseline model: {model_name}")
 
     model.to(device)
-
-    for p in model.parameters():
-        p.requires_grad = False
 
     # Dataset
     if hasattr(model.config, "n_positions"):
@@ -93,6 +101,9 @@ def train_adapter(
         rescaling_factor=rescaling_factor,
         input_path=data_path
     )
+
+    sample_label = dataset[0]["labels"]
+    print(f"Label of the first sample: {sample_label:.2f}")
 
     train_set, val_set, test_set = split_dataset(dataset=dataset, val_split=0.1, test_split=0.1)
 
@@ -133,6 +144,13 @@ def train_adapter(
 
     # Training
     model.train_adapter(adapter_setup=adapter_name)
+
+    if train_head:
+        for module in model.named_modules():
+            if module[0] == "lm_head":
+                for parameter in module[1].parameters():
+                    parameter.requires_grad = True
+                break
 
     training_args = TrainingArguments(
         report_to=["wandb"],
@@ -197,15 +215,16 @@ if __name__ == "__main__":
     parser.add_argument("--num_train_epochs", type=int, default=4)
     parser.add_argument("--num_steps", type=int, default=1500)
     parser.add_argument("--early_stopping_patience", type=int, default=4)
+    parser.add_argument("--train_head", action="store_true")
 
     parser.add_argument("--text_column_name", type=str, default="phrase")
-    parser.add_argument("--target_label", type=str, default="FRE")
-    parser.add_argument("--do_rescaling", type=bool, default=True)
+    parser.add_argument("--target_label", type=str, default="WLF")
+    parser.add_argument("--do_rescaling", action="store_true")
     parser.add_argument("--max_value", type=float, default=100)
     parser.add_argument("--min_value", type=float, default=0)
     parser.add_argument("--rescaling_factor", type=float, default=10)
 
-    parser.add_argument("--disable_tqdm", type=bool, default=True)
+    parser.add_argument("--disable_tqdm", action="store_true")
 
     args = parser.parse_args()
 
