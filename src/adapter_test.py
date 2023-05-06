@@ -5,7 +5,7 @@ from preprocess import specify_config
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-prompt = "Das ist"
+prompt = "Sie haben einen Text in Leichter Sprache geschrieben?"
 
 # If the model is loaded from remote, add special tokens and resize the vocab.
 # model_path = "malteos/bloom-350m-german"
@@ -13,7 +13,7 @@ prompt = "Das ist"
 # model, tokenizer = specify_config(model_path=model_path)
 
 # Load preprocessed model from local.
-model_path = "../adapters/bloom-350m-german/Orig"
+model_path = "../adapters/bloom-350m-german/Orig/causal"
 model_name = model_path.split("/")[-2]
 
 model = AutoModelForCausalLM.from_pretrained(model_path)
@@ -25,9 +25,9 @@ tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 input_ids = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).input_ids.to(device)
 
-adapter_path = "../adapters/bloom-350m-german/Compacter++/model_r8_n64"
-# adapter_path = "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16"
-layer_range = 2
+# adapter_path = "../adapters/bloom-350m-german/Compacter++/model_r8_n64"
+adapter_path = "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16"
+layer_range = 0
 leave_out = [layer for layer in range(layer_range)]
 model.load_adapter(adapter_path, leave_out=leave_out)
 adapter_dicts = model.adapter_summary(as_dict=True)
@@ -60,7 +60,8 @@ output_ids_orig = model_orig.generate(
     max_new_tokens=max_new_tokens,
     penalty_alpha=penalty_alpha,
     top_k=top_k,
-    no_repeat_ngram_size=no_repeat_ngram_size
+    no_repeat_ngram_size=no_repeat_ngram_size,
+    early_stopping=True
 )
 
 output_ids = model.generate(
@@ -70,7 +71,8 @@ output_ids = model.generate(
     max_new_tokens=max_new_tokens,
     penalty_alpha=penalty_alpha,
     top_k=top_k,
-    no_repeat_ngram_size=no_repeat_ngram_size
+    no_repeat_ngram_size=no_repeat_ngram_size,
+    early_stopping=True
 )
 
 output_text_orig = tokenizer.decode(

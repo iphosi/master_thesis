@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from statistics import mean
 from nltk.tokenize import word_tokenize, sent_tokenize
-from nltk.stem import WordNetLemmatizer
 
 word_freq_path = "../datasets/dewiki.txt"
 size = 100000
@@ -15,8 +14,6 @@ word_freq_df = pd.read_csv(
 ).iloc[:size]
 min_freq = word_freq_df["frequency"].min()
 max_freq = word_freq_df["frequency"].max()
-
-lemmatizer = WordNetLemmatizer()
 
 
 def count_newlines(text):
@@ -60,9 +57,12 @@ def get_log_freq_spacy(doc):
 
 def get_log_freq_nltk(text, language="german", use_lemma=False):
     language = "german" if language == "de" else language
-    tokens = word_tokenize(text, language=language)
+
     if use_lemma:
-        tokens = list(map(lemmatizer.lemmatize, tokens))
+        raise NotImplementedError
+    else:
+        tokens = word_tokenize(text, language=language)
+
     tokens = filter(lambda t: t.isalpha() and t.lower() not in set(stopwords.words(language)), tokens)
     freq = [
         word_freq_df.loc[

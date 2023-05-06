@@ -3,6 +3,7 @@
 /src/~/
 /src/test/
 /src/test.py
+/src/function_test.py
 /src/wandb/
 /datasets/
 /adapters/

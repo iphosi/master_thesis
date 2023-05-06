@@ -58,9 +58,13 @@ class Evaluate:
             },
             "bloom-350m-german": {
                 "ORIG": "../adapters/bloom-350m-german/Orig",
-                "TCP_ADP_BN_S_r16_FRE": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_FRE/model_r16",
                 # "ADP_BN_S_r16": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential/model_r16",
+                "TCP_ADP_BN_S_r16_FRE": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_FRE/model_r16",
                 "TCP_ADP_BN_S_r16_WLF": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_WLF/model_r16",
+                "TCP_ADP_BN_S_r16_MOS": "../adapters/bloom-350m-german/Adapter_Bottleneck_Sequential_MOS/model_r16",
+                "TCP_ADP_Comp++_r8_n4_rk16_ns_WLF": "../adapters/bloom-350m-german/Compacter++_WLF/model_r8_n4_rk16_ns",
+                "TCP_ADP_Comp++_r8_n4_rk16_MOS": "../adapters/bloom-350m-german/Compacter++_MOS/model_r8_n4_rk16",
+                "TCP_ADP_Comp++_r8_n4_rk16_ns_MOS": "../adapters/bloom-350m-german/Compacter++_MOS/model_r8_n4_rk16_ns",
                 # "ADP_Comp++_r16_n64_rk8": "../adapters/bloom-350m-german/Compacter++/model_r16_n64_rk8",
             }
         } if model_dict is None else model_dict
@@ -602,9 +606,26 @@ class Evaluate:
 
         output_path = os.path.join(output_path, f"{target_label.lower()}_prediction.csv")
 
+        if target_label == "WLF":
+            do_rescaling = True
+            max_value = 10
+            min_value = 0
+            rescaling_factor = 100
+        elif target_label == "FRE":
+            do_rescaling = True
+            max_value = 100
+            min_value = 0
+            rescaling_factor = 10
+        else:
+            do_rescaling = False
+            max_value = None
+            min_value = None
+            rescaling_factor = None
+
         columns = [
             "Model Name",
             "Tuning Method",
+            "%Parameter",
             f"{target_label} MSE",
         ]
 
@@ -650,15 +671,7 @@ class Evaluate:
                     else:
                         max_length = 1024
 
-                    if target_label == "FRE":
-                        do_rescaling = True
-                    else:
-                        do_rescaling = False
-
-                    if target_label == "MOS":
-                        text_column_name = "Sentence"
-                    else:
-                        text_column_name = "phrase"
+                    text_column_name = "phrase"
 
                     dataset = get_text_complexity_dataset(
                         tokenizer=tokenizer,
@@ -666,6 +679,9 @@ class Evaluate:
                         text_column_name=text_column_name,
                         target_label=target_label,
                         do_rescaling=do_rescaling,
+                        max_value=max_value,
+                        min_value=min_value,
+                        rescaling_factor=rescaling_factor,
                         input_path=input_path
                     )
 
@@ -677,12 +693,16 @@ class Evaluate:
                             input_ids = test_data["input_ids"].view(1, -1).to(self.device)
                             labels = torch.tensor(test_data["labels"]).to(self.device)
                             output = model(input_ids, labels=labels)
-                            mse = output.loss.item()
-                            mse_list.append(mse)
+                            mse_list.append(output.loss.item())
 
                     avg_mse = mean(mse_list)
 
-                    data.append([model_name, tuning_method, round(avg_mse, 2)])
+                    param = sum(
+                        summary["%param"] for summary in model.adapter_summary(as_dict=True)
+                        if summary["name"] != "Full model"
+                    )
+
+                    data.append([model_name, tuning_method, round(param, 2), round(avg_mse, 2)])
 
                 else:
                     print("Model path is not defined.")
@@ -704,5 +724,9 @@ if __name__ == "__main__":
     #     evaluate.generate_text(model_name=model_list[model_idx], leave_out=leave_out_layers)
     #     evaluate.simp_val_eval(model_name=model_list[model_idx], leave_out=leave_out_layers)
     # evaluate.rsa(model_name=model_list[model_idx], use_cpu=True)
-    evaluate.tcp(model_name=model_list[model_idx], target_label="WLF")
+    evaluate.tcp(
+        model_name=model_list[model_idx],
+        target_label="WLF",
+        input_path="../datasets/TextComplexity/monolingual"
+    )
     print("End")

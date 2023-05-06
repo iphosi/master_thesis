@@ -32,14 +32,17 @@ import wandb
 
 def train_adapter(
     device=None,
+    adapter_type=None,
     adapter_name=None,
     adapter_dict=None,
     checkpoint_name=None,
     model_path="malteos/bloom-350m-german",
-    data_path="../datasets/monolingual Leichte Sprache",
+    data_path="../datasets/monolingual_Leichte_Sprache",
+    num_phrases_per_sample=16,
     batch_size=1,
     gradient_accumulation_steps=4,
     learning_rate=4e-4,
+    warmup_steps=200,
     num_train_epochs=2,
     num_steps=1500,
     early_stopping_patience=4,
@@ -61,9 +64,6 @@ def train_adapter(
 
     model.to(device)
 
-    for p in model.parameters():
-        p.requires_grad = False
-
     # Dataset
     if hasattr(model.config, "n_positions"):
         max_length = model.config.n_positions
@@ -75,10 +75,11 @@ def train_adapter(
     dataset = get_monolingual_dataset(
         tokenizer=tokenizer,
         max_length=max_length,
+        num_phrases_per_sample=num_phrases_per_sample,
         input_path=data_path
     )
 
-    train_dataset, val_dataset = split_dataset(dataset)
+    train_set, val_set, _ = split_dataset(dataset=dataset, val_split=0.1, test_split=0.1)
 
     # Adapter
     adapter_dict = {
@@ -95,7 +96,9 @@ def train_adapter(
         )
     } if adapter_dict is None else adapter_dict
 
-    adapter_config = adapter_dict[adapter_name]
+    adapter_config = adapter_dict[adapter_type]
+
+    adapter_name = adapter_type if adapter_name is None else adapter_name
 
     if checkpoint_name:
         checkpoint_path = f"../adapters/{model_name}/{adapter_name}/pretrained/{checkpoint_name}/{adapter_name}"
@@ -114,6 +117,7 @@ def train_adapter(
 
     # Training
     model.train_adapter(adapter_setup=adapter_name)
+    print(model.adapter_summary())
 
     training_args = TrainingArguments(
         report_to=["wandb"],
@@ -127,7 +131,7 @@ def train_adapter(
         weight_decay=0.01,
         gradient_accumulation_steps=gradient_accumulation_steps,
         fp16=True,
-        warmup_steps=200,
+        warmup_steps=warmup_steps,
         num_train_epochs=num_train_epochs,
         save_strategy="steps",
         evaluation_strategy="steps",
@@ -149,8 +153,8 @@ def train_adapter(
         model=model,
         args=training_args,
         tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
+        train_dataset=train_set,
+        eval_dataset=val_set,
         data_collator=data_collator,
     )
 
@@ -171,31 +175,37 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--adapter_name", type=str, default="Adapter_Bottleneck_Sequential")
+    parser.add_argument("--adapter_type", type=str, default="Adapter_Bottleneck_Sequential")
+    parser.add_argument("--adapter_name", type=str, default=None)
     parser.add_argument("--model_path",  type=str, default="malteos/bloom-350m-german")
-    parser.add_argument("--data_path", type=str, default="../datasets/monolingual Leichte Sprache")
+    parser.add_argument("--data_path", type=str, default="../datasets/monolingual_Leichte_Sprache")
     parser.add_argument("--checkpoint_name", type=str, default=None)
 
+    parser.add_argument("--num_phrases_per_sample", type=int, default=16)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=4e-4)
+    parser.add_argument("--warmup_steps", type=int, default=200)
     parser.add_argument("--num_train_epochs", type=int, default=2)
     parser.add_argument("--num_steps", type=int, default=1500)
     parser.add_argument("--early_stopping_patience", type=int, default=4)
 
-    parser.add_argument("--disable_tqdm", type=bool, default=True)
+    parser.add_argument("--disable_tqdm", action="store_true")
 
     args = parser.parse_args()
 
     train_adapter(
         device=args.device,
+        adapter_type=args.adapter_type,
         adapter_name=args.adapter_name,
         model_path=args.model_path,
         data_path=args.data_path,
         checkpoint_name=args.checkpoint_name,
+        num_phrases_per_sample=args.num_phrases_per_sample,
         batch_size=args.batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
+        warmup_steps=args.warmup_steps,
         num_train_epochs=args.num_train_epochs,
         num_steps=args.num_steps,
         early_stopping_patience=args.early_stopping_patience,

@@ -84,11 +84,12 @@ class AbstractDataset(Dataset, ABC):
 
 
 class MonolingualDataset(AbstractDataset):
-    def __init__(self, name, csv_file, tokenizer, stride_length, max_length, num_subtexts):
+    def __init__(self, name, csv_file, tokenizer, max_length, stride_length, num_phrases_per_sample):
         text_dataframe = pd.read_csv(csv_file).dropna()
         text_dataframe = text_dataframe.sort_values(["phrase_number"]).groupby(["topic"])["phrase"]
-        text_dataframe = text_dataframe.apply(np.array_split, indices_or_sections=num_subtexts).apply(self.join_texts)
-        text_dataframe = text_dataframe.reset_index().explode("phrase")
+        text_dataframe = text_dataframe.apply(self.dynamic_split, num_phrases_per_sample=num_phrases_per_sample)
+        text_dataframe = text_dataframe.apply(self.join_texts).reset_index().explode("phrase")
+        text_dataframe = text_dataframe.replace(["^\s*$"], np.NaN, regex=True).dropna()
 
         self.name = name
         super().__init__(text_dataframe, tokenizer, stride_length, max_length)
@@ -98,6 +99,11 @@ class MonolingualDataset(AbstractDataset):
 
     def get_columns(self) -> Iterable[str]:
         return self.texts.columns
+
+    @staticmethod
+    def dynamic_split(topic_group, num_phrases_per_sample=16):
+        num_sections = max(1, len(topic_group) // num_phrases_per_sample)
+        return np.array_split(topic_group, indices_or_sections=num_sections)
 
     @staticmethod
     def join_texts(series_list):
@@ -171,7 +177,7 @@ class ConcatTextComplexityDataset(ConcatDataset):
         do_rescaling=True,
         max_value=None,
         min_value=None,
-        rescaling_factor=10
+        rescaling_factor=100
     ):
         self.max = max(dataset.max for dataset in datasets) if max_value is None else max_value
         self.min = min(dataset.min for dataset in datasets) if min_value is None else min_value
@@ -193,8 +199,8 @@ def get_monolingual_dataset(
     tokenizer,
     max_length,
     stride_length=64,
-    num_subtexts=4,
-    input_path="../datasets/monolingual Leichte Sprache"
+    num_phrases_per_sample=16,
+    input_path="../datasets/monolingual_Leichte_Sprache"
 ):
     dataset_path_list = glob.glob(f"{input_path}/*.csv")
     dataset_name_list = [
@@ -205,7 +211,14 @@ def get_monolingual_dataset(
     ]
 
     dataset_list = [
-        MonolingualDataset(name, path, tokenizer, stride_length, max_length, num_subtexts)
+        MonolingualDataset(
+            name=name,
+            csv_file=path,
+            tokenizer=tokenizer,
+            max_length=max_length,
+            stride_length=stride_length,
+            num_phrases_per_sample=num_phrases_per_sample
+        )
         for name, path in zip(dataset_name_list, dataset_path_list)
     ]
 
@@ -217,17 +230,24 @@ def get_text_complexity_dataset(
     max_length,
     stride_length=64,
     text_column_name="phrase",
-    target_label="FRE",
+    target_label="WLF",
     do_rescaling=True,
-    max_value=100,
+    max_value=10,
     min_value=0,
-    rescaling_factor=10,
+    rescaling_factor=100,
     input_path="../datasets/TextComplexity/monolingual"
 ):
     dataset_path_list = glob.glob(f"{input_path}/*.csv")
 
     dataset_list = [
-        TextComplexityDataset(path, text_column_name, target_label, tokenizer, max_length, stride_length)
+        TextComplexityDataset(
+            csv_file=path,
+            text_column_name=text_column_name,
+            target_label=target_label,
+            tokenizer=tokenizer,
+            max_length=max_length,
+            stride_length=stride_length
+        )
         for path in dataset_path_list
     ]
 

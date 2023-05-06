@@ -1,3 +1,2 @@
 Model Name,Tuning Method,MOS MSE
-bloom-350m-german,ORIG,5.79
 bloom-350m-german,TCP_ADP_BN_S_r16_MOS,0.44

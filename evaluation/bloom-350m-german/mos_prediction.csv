@@ -1,0 +1,4 @@
+Model Name,Tuning Method,%Parameter,MOS MSE
+bloom-350m-german,TCP_ADP_BN_S_r16_MOS,0.9,0.44
+bloom-350m-german,TCP_ADP_Comp++_r8_n4_rk16_MOS,0.26,0.61
+bloom-350m-german,TCP_ADP_Comp++_r8_n4_rk16_ns_MOS,0.26,0.54

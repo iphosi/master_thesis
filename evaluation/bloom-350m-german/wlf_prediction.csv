@@ -1,2 +1,3 @@
-Model Name,Tuning Method,WLF MSE
-bloom-350m-german,TCP_ADP_BN_S_r16_WLF,16.15
+Model Name,Tuning Method,%Parameter,WLF MSE
+bloom-350m-german,TCP_ADP_BN_S_r16_WLF,0.9,0.22
+bloom-350m-german,TCP_ADP_Comp++_r8_n4_rk16_ns_WLF,0.26,1.2
